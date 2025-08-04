@@ -1,1 +1,1 @@
-# Workout App
+# Session Planner
