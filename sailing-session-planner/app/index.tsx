@@ -23,6 +23,7 @@ export default function HomeScreen() {
   const [windDirection, setWindDirection] = useState('N');
   const [tideStrength, setTideStrength] = useState(5);
   const [tideDirection, setTideDirection] = useState('NoTide');
+  const [tidal, setTidal] = useState('No');
 
   return (
   <>
@@ -185,7 +186,56 @@ export default function HomeScreen() {
             </ThemedView>
           </ThemedView>
         </ThemedView>
-        <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
+        <ThemedView style={{ marginTop: 24 }}>
+          <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Is the Location Tidal? </ThemedText>
+          <ThemedView style={{ width: '48%', marginTop: 12 }}>
+            <Picker
+              selectedValue={tidal === "No" ? "No" : "Yes"}
+              onValueChange={(itemValue) => {
+                setTidal(itemValue);
+              }}
+              style={styles.textBox}
+              dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}
+            >
+              <Picker.Item label="Yes" value="Yes" />
+              <Picker.Item label="No" value="No" />
+            </Picker>
+          </ThemedView>
+        </ThemedView>
+        {tidal !== "No" && (
+          <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
+            <ThemedView style={{width: '50%'}}>
+              <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Strength (knots) </ThemedText>
+              <ThemedView style={{ width: '95%', marginTop: 12 }}>
+          <Picker selectedValue={tideStrength} onValueChange={(itemValue) => setTideStrength(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+            <Picker.Item label="Slack (0 - 0.5 kts)" value="slack" />
+            <Picker.Item label="Light (0.5 - 1.5 kts)" value="light" />
+            <Picker.Item label="Moderate (1.5 - 3 kts)" value="moderate" />
+            <Picker.Item label="Strong (3 - 5 kts)" value="strong" />
+            <Picker.Item label="Spring Tide (5+ kts)" value="spring" />
+          </Picker>
+              </ThemedView>
+            </ThemedView>
+            <ThemedView style={{width: '50%'}}>
+              <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Direction </ThemedText>
+              <ThemedView style={{ width: '95%', marginTop: 12 }}>
+              <Picker selectedValue={tideDirection} onValueChange={(itemValue) => setTideDirection(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="Ebb" value="Ebb" />
+                <Picker.Item label="Flood" value="Flood" />
+                <Picker.Item label="North" value="N" />
+                <Picker.Item label="North-East" value="NE" />
+                <Picker.Item label="East" value="E" />
+                <Picker.Item label="South-East" value="SE" />
+                <Picker.Item label="South" value="S" />
+                <Picker.Item label="South-West" value="SW" />
+                <Picker.Item label="West" value="W" />
+                <Picker.Item label="North-West" value="NW" />
+              </Picker>
+              </ThemedView>
+            </ThemedView>
+          </ThemedView>
+        )}</ThemedView>
+        {/* <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
           <ThemedView style={{width: '50%'}}>
             <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Strength (knots) </ThemedText>
             <ThemedView style={{ width: '95%', marginTop: 12 }}>
@@ -217,8 +267,8 @@ export default function HomeScreen() {
               </Picker>
             </ThemedView>
           </ThemedView>
-        </ThemedView>
-      </ThemedView>
+        </ThemedView> */}
+      {/* </ThemedView> */}
 
     </ScrollView>
     </ThemedView>
