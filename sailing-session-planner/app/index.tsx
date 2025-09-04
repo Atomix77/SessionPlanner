@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useState } from 'react';
-import { Compass, Waves, Sun, Users } from "lucide-react"
+import { Compass, Waves, Sun, Users, Pi } from "lucide-react"
 import { Picker } from '@react-native-picker/picker';
 
 import { HelloWave } from '@/components/HelloWave';
@@ -16,6 +16,13 @@ export default function HomeScreen() {
   const [instructorCount, setInstructorCount] = useState(1);
   const [studentCount, setStudentCount] = useState(3);
   const [selectedAgeRange, setSelectedAgeRange] = useState('10to14');
+  const [sessionLength, setSessionLength] = useState(1 + ' hour');
+  const [courseType, setCourseType] = useState('Youth');
+  const [course, setCourse] = useState('Stage1');
+  const [windSpeed, setWindSpeed] = useState(10);
+  const [windDirection, setWindDirection] = useState('N');
+  const [tideStrength, setTideStrength] = useState(5);
+  const [tideDirection, setTideDirection] = useState('NoTide');
 
   return (
   <>
@@ -66,61 +73,153 @@ export default function HomeScreen() {
       </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
-        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Participants </ThemedText>
-        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Student and Instructor allocation </ThemedText>
+        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Details </ThemedText>
+        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Core Session Information </ThemedText>
         <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
           <ThemedView style={{width: '50%'}}>
-            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Number of Students </ThemedText>
+            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Course Type</ThemedText>
             <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <TextInput style={styles.textBox} keyboardType="numeric" value={studentCount.toString()} onChangeText={text => setStudentCount(Number(text))}/>
+              <Picker selectedValue={courseType} onValueChange={(itemValue) => setCourseType(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="Youth" value="Youth" />
+                <Picker.Item label="Adult" value="Adult" />
+                <Picker.Item label="Advanced" value="Advanced" />
+                <Picker.Item label="Race" value="Race" />
+              </Picker>
             </ThemedView>
           </ThemedView>
+
           <ThemedView style={{width: '50%'}}>
-            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Number of Instructors </ThemedText>
+            <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Course</ThemedText>
             <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <TextInput style={styles.textBox} keyboardType="numeric" value={instructorCount.toString()} onChangeText={text => setInstructorCount(Number(text))}/>
+              {(() => {
+                let courseOptions: { label: string; value: string }[] = [];
+                switch (courseType) {
+                  case 'Youth':
+                    courseOptions = [
+                      { label: "Stage 1", value: "Stage1" },
+                      { label: "Stage 2", value: "Stage2" },
+                      { label: "Stage 3", value: "Stage3" },
+                      { label: "Stage 4", value: "Stage4" },
+                      { label: "Taster Session", value: "YouthTasterSession" },
+                    ];
+                    break;
+                  case 'Adult':
+                    courseOptions = [
+                      { label: "Level 1 - Start Sailing", value: "Level1" },
+                      { label: "Level 2 - Basic Skills", value: "Level2" },
+                      { label: "Level 3 - Better Sailing", value: "Level3" },
+                      { label: "Taster Session", value: "AdultTasterSession" },
+                    ];
+                    break;
+                  case 'Advanced':
+                    courseOptions = [
+                      { label: "Performance Sailing", value: "PerformanceSailing" },
+                      { label: "Seamanship Skills", value: "Seamanship" },
+                      { label: "Day Sailing", value: "DaySailing" },
+                      { label: "Sailing with Spinnaker", value: "SailingWithSpinnaker" },
+                    ];
+                    break;
+                  case 'Race':
+                    courseOptions = [
+                      { label: "Start Racing", value: "StartRacing" },
+                      { label: "Club Racing", value: "ClubRacing" },
+                      { label: "Regional Racing", value: "RegionalRacing" },
+                      { label: "Championship Racing", value: "ChampionshipRacing" },
+                    ];
+                    break;
+                  default:
+                    courseOptions = [];
+                }
+                return (
+                  <Picker
+                    selectedValue={course}
+                    onValueChange={(itemValue) => setCourse(itemValue)}
+                    style={styles.textBox}
+                    dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}
+                  >
+                    {courseOptions.map(opt => (
+                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                    ))}
+                  </Picker>
+                );
+              })()}
             </ThemedView>
           </ThemedView>
         </ThemedView>
-        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Age Range</ThemedText>
-        <ThemedView style={{ width: '48%', marginTop: 12 }}>
-          <Picker selectedValue={selectedAgeRange} onValueChange={(itemValue) => setSelectedAgeRange(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
-            <Picker.Item label="8 - 10" value="8to10" />
-            <Picker.Item label="11 - 14" value="11to14" />
-            <Picker.Item label="14 - 18" value="14to18" />
-            <Picker.Item label="18+" value="18plus" />
-          </Picker>
-        </ThemedView>
+        
+        <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Session Length </ThemedText>
+            <ThemedView style={{ width: '48%', marginTop: 12 }}>
+              <Picker selectedValue={sessionLength} onValueChange={(itemValue) => setSessionLength(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="1 hour" value="1hour" />
+                <Picker.Item label="2 hours" value="2hours" />
+                <Picker.Item label="4 hours" value="4hours" />
+                <Picker.Item label="8 hours" value="8hours" />
+              </Picker>
+            </ThemedView>
+        
       </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
-        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Participants </ThemedText>
-        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Student and Instructor allocation </ThemedText>
+        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Sailing Conditions </ThemedText>
+        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Wind and Tide Information </ThemedText>
         <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
           <ThemedView style={{width: '50%'}}>
-            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Number of Students </ThemedText>
+            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Wind Speed (knots) </ThemedText>
             <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <TextInput style={styles.textBox} keyboardType="numeric" value={studentCount.toString()} onChangeText={text => setStudentCount(Number(text))}/>
+              <TextInput style={styles.textBox} keyboardType="numeric" value={windSpeed.toString()} onChangeText={text => setWindSpeed(Number(text))}/>
             </ThemedView>
           </ThemedView>
           <ThemedView style={{width: '50%'}}>
-            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Number of Instructors </ThemedText>
+            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Wind Direction </ThemedText>
             <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <TextInput style={styles.textBox} keyboardType="numeric" value={instructorCount.toString()} onChangeText={text => setInstructorCount(Number(text))}/>
+              <Picker selectedValue={windDirection} onValueChange={(itemValue) => setWindDirection(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="North" value="N" />
+                <Picker.Item label="North-East" value="NE" />
+                <Picker.Item label="East" value="E" />
+                <Picker.Item label="South-East" value="SE" />
+                <Picker.Item label="South" value="S" />
+                <Picker.Item label="South-West" value="SW" />
+                <Picker.Item label="West" value="W" />
+                <Picker.Item label="North-West" value="NW" />
+              </Picker>
             </ThemedView>
           </ThemedView>
         </ThemedView>
-        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Age Range</ThemedText>
-        <ThemedView style={{ width: '48%', marginTop: 12 }}>
-          <Picker selectedValue={selectedAgeRange} onValueChange={(itemValue) => setSelectedAgeRange(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
-            <Picker.Item label="8 - 10" value="8to10" />
-            <Picker.Item label="11 - 14" value="11to14" />
-            <Picker.Item label="14 - 18" value="14to18" />
-            <Picker.Item label="18+" value="18plus" />
-          </Picker>
+        <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
+          <ThemedView style={{width: '50%'}}>
+            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Strength (knots) </ThemedText>
+            <ThemedView style={{ width: '95%', marginTop: 12 }}>
+              <Picker selectedValue={tideStrength} onValueChange={(itemValue) => setTideStrength(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="No Tide" value="NoTide" />
+                <Picker.Item label="Slack (0 - 0.5 kts)" value="slack" />
+                <Picker.Item label="Light (0.5 - 1.5 kts)" value="light" />
+                <Picker.Item label="Moderate (1.5 - 3 kts)" value="moderate" />
+                <Picker.Item label="Strong (3 - 5 kts)" value="strong" />
+                <Picker.Item label="Spring Tide (5+ kts)" value="spring" />
+              </Picker>
+            </ThemedView>
+          </ThemedView>
+          <ThemedView style={{width: '50%'}}>
+            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Direction </ThemedText>
+            <ThemedView style={{ width: '95%', marginTop: 12 }}>
+              <Picker selectedValue={tideDirection} onValueChange={(itemValue) => setTideDirection(itemValue)} style={styles.textBox} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="No Tide" value="NoTide" />
+                <Picker.Item label="Ebb" value="Ebb" />
+                <Picker.Item label="Flood" value="Flood" />
+                <Picker.Item label="North" value="N" />
+                <Picker.Item label="North-East" value="NE" />
+                <Picker.Item label="East" value="E" />
+                <Picker.Item label="South-East" value="SE" />
+                <Picker.Item label="South" value="S" />
+                <Picker.Item label="South-West" value="SW" />
+                <Picker.Item label="West" value="W" />
+                <Picker.Item label="North-West" value="NW" />
+              </Picker>
+            </ThemedView>
+          </ThemedView>
         </ThemedView>
       </ThemedView>
-      
+
     </ScrollView>
     </ThemedView>
   </>
