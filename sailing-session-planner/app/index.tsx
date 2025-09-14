@@ -1,21 +1,21 @@
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
-import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput, Pressable } from 'react-native';
 import { useState } from 'react';
-import { Compass, Waves, Sun, Users, Pi } from "lucide-react"
+import { Compass, Goal, Users, Wind, Sailboat, Info } from "lucide-react"
 import { Picker } from '@react-native-picker/picker';
 
-import { HelloWave } from '@/components/HelloWave';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+
+import { generateSessionPlan } from '../utils/sessionGenerator';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const [instructorCount, setInstructorCount] = useState(1);
   const [studentCount, setStudentCount] = useState(3);
-  const [selectedAgeRange, setSelectedAgeRange] = useState('10to14');
+  const [ageRange, setAgeRange] = useState('10to14');
   const [sessionLength, setSessionLength] = useState(1 + ' hour');
   const [courseType, setCourseType] = useState('Youth');
   const [course, setCourse] = useState('Stage1');
@@ -23,16 +23,31 @@ export default function HomeScreen() {
   const [gustSpeed, setGustSpeed] = useState(15);
   const [tideStrength, setTideStrength] = useState(5);
   const [tideDirection, setTideDirection] = useState('Ebb');
+  const [waveHeight, setWaveHeight] = useState('0');
   const [tidal, setTidal] = useState('No');
+  const boatOptions = [
+            { label: 'Single Hander', value: 'single' },
+            { label: 'Double Hander', value: 'double' },
+            { label: 'Large Double Hander', value: 'largeDouble' },
+            { label: 'Multi-Crew', value: 'multi' },
+          ];
+  const [selectedBoats, setSelectedBoats] = useState<string[]>([]);
+  const toggleBoat = (boat: string) => {
+    setSelectedBoats(prev =>
+      prev.includes(boat)
+        ? prev.filter(b => b !== boat)
+        : [...prev, boat]
+    );
+  };
+  const [games, setGames] = useState('');
+
 
   return (
   <>
     <Stack.Screen options={{ headerShown: false }} />
     <ThemedView style={[styles.container,{ backgroundColor: colorScheme === 'light' ? '#fff' : '#000' }]}>
       <ThemedView style={[styles.bannerContainer, { backgroundColor: colorScheme === 'light' ? '#ffffff' : '#000000' , borderBottomColor: colorScheme === 'light' ? '#e4e4e4' : '#1a1a1aff',}]}>
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.bannerLogo} />
+        <Compass size={48} color="#087ca3"/>
         <ThemedText type="title" style={[styles.bannerTitle, styles.mainBanner]}>SailPlan</ThemedText>
       </ThemedView>
 
@@ -46,7 +61,10 @@ export default function HomeScreen() {
       </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
-        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Participants </ThemedText>
+        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
+          <Users size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
+          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Participants </ThemedText>
+        </ThemedView>
         <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Student and Instructor allocation </ThemedText>
         <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
           <ThemedView style={{width: '50%'}}>
@@ -64,7 +82,7 @@ export default function HomeScreen() {
         </ThemedView>
         <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Age Range</ThemedText>
         <ThemedView style={{ width: '48%', marginTop: 12 }}>
-          <Picker selectedValue={selectedAgeRange} onValueChange={(itemValue) => setSelectedAgeRange(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+          <Picker selectedValue={ageRange} onValueChange={(itemValue) => setAgeRange(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
             <Picker.Item label="8 - 10" value="8to10" color={colorScheme === 'light' ? '#000' : '#fff'} />
             <Picker.Item label="11 - 14" value="11to14" color={colorScheme === 'light' ? '#000' : '#fff'} />
             <Picker.Item label="14 - 18" value="14to18" color={colorScheme === 'light' ? '#000' : '#fff'} />
@@ -74,7 +92,10 @@ export default function HomeScreen() {
       </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
-        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Details </ThemedText>
+        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
+          <Info size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
+          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Details </ThemedText>
+        </ThemedView>
         <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Core Session Information </ThemedText>
         <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
           <ThemedView style={{width: '50%'}}>
@@ -158,8 +179,11 @@ export default function HomeScreen() {
       </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
-        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Sailing Conditions </ThemedText>
-        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Wind and Tide Information </ThemedText>
+        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
+          <Wind size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
+          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Sailing Conditions </ThemedText>
+        </ThemedView>
+          <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Wind and Tide Information </ThemedText>
         <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
           <ThemedView style={{width: '50%'}}>
             <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Wind Speed (knots) </ThemedText>
@@ -183,26 +207,26 @@ export default function HomeScreen() {
                 setTidal(itemValue);
               }}
               style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
-              <Picker.Item label="Yes" value="Yes" />
               <Picker.Item label="No" value="No" />
+              <Picker.Item label="Yes" value="Yes" />
             </Picker>
           </ThemedView>
         </ThemedView>
         {tidal !== "No" && (
           <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
-            <ThemedView style={{width: '50%'}}>
+            <ThemedView style={{width: '33%'}}>
               <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Strength (knots) </ThemedText>
               <ThemedView style={{ width: '95%', marginTop: 12 }}>
-          <Picker selectedValue={tideStrength} onValueChange={(itemValue) => setTideStrength(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
-            <Picker.Item label="Slack (0 - 0.5 kts)" value="slack" />
-            <Picker.Item label="Light (0.5 - 1.5 kts)" value="light" />
-            <Picker.Item label="Moderate (1.5 - 3 kts)" value="moderate" />
-            <Picker.Item label="Strong (3 - 5 kts)" value="strong" />
-            <Picker.Item label="Spring Tide (5+ kts)" value="spring" />
-          </Picker>
+              <Picker selectedValue={tideStrength} onValueChange={(itemValue) => setTideStrength(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+                <Picker.Item label="Slack (0 - 0.5 kts)" value="slack" />
+                <Picker.Item label="Light (0.5 - 1.5 kts)" value="light" />
+                <Picker.Item label="Moderate (1.5 - 3 kts)" value="moderate" />
+                <Picker.Item label="Strong (3 - 5 kts)" value="strong" />
+                <Picker.Item label="Spring Tide (5+ kts)" value="spring" />
+              </Picker>
               </ThemedView>
             </ThemedView>
-            <ThemedView style={{width: '50%'}}>
+            <ThemedView style={{width: '33%'}}>
               <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Direction </ThemedText>
               <ThemedView style={{ width: '95%', marginTop: 12 }}>
               <Picker selectedValue={tideDirection} onValueChange={(itemValue) => setTideDirection(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#fff' : '#000'}>
@@ -213,37 +237,74 @@ export default function HomeScreen() {
               </Picker>
               </ThemedView>
             </ThemedView>
+            <ThemedView style={{width: '33%'}}>
+              <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Wave Height (metres)</ThemedText>
+                <ThemedView style={{ width: '95%', marginTop: 12 }}>
+                  <TextInput
+                    style={[styles.textBox, { backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a', color: colorScheme === 'light' ? '#000' : '#fff', }]}
+                    keyboardType="decimal-pad"
+                    value={waveHeight}
+                    onChangeText={text => {
+                      // Accept only valid decimal numbers or empty string
+                      const sanitized = text.replace(',', '.');
+                      if (/^\d*\.?\d*$/.test(sanitized) || sanitized === '') {
+                        setWaveHeight(sanitized);
+                      }
+                    }}
+                    inputMode="decimal"
+                    placeholder="e.g. 0.5"
+                    maxLength={5}
+                  />
+                </ThemedView>
+            </ThemedView>
           </ThemedView>
         )}</ThemedView>
 
       <ThemedView style={styles.contentContainer}>
-        <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Boats and Equipment </ThemedText>
-        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Available Boats and Training Equipment </ThemedText>
-        <ThemedView style={{ marginTop: 24, display: 'flex', flexDirection: 'row' }}>
-          <ThemedView style={{width: '50%'}}>
-            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Number of Students </ThemedText>
-            <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <TextInput style={[styles.textBox, { backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a', color: colorScheme === 'light' ? '#000' : '#fff',}]} keyboardType="numeric" value={studentCount.toString()} onChangeText={text => setStudentCount(Number(text))}/>
-            </ThemedView>
-          </ThemedView>
-          <ThemedView style={{width: '50%'}}>
-            <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Number of Instructors </ThemedText>
-            <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <TextInput style={[styles.textBox, { backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a', color: colorScheme === 'light' ? '#000' : '#fff',}]} keyboardType="numeric" value={instructorCount.toString()} onChangeText={text => setInstructorCount(Number(text))}/>
-            </ThemedView>
-          </ThemedView>
+        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
+          <Sailboat size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
+          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Boats and Equipment </ThemedText>
         </ThemedView>
-        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Age Range</ThemedText>
-        <ThemedView style={{ width: '48%', marginTop: 12 }}>
-          <Picker selectedValue={selectedAgeRange} onValueChange={(itemValue) => setSelectedAgeRange(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
-            <Picker.Item label="8 - 10" value="8to10" color={colorScheme === 'light' ? '#000' : '#fff'} />
-            <Picker.Item label="11 - 14" value="11to14" color={colorScheme === 'light' ? '#000' : '#fff'} />
-            <Picker.Item label="14 - 18" value="14to18" color={colorScheme === 'light' ? '#000' : '#fff'} />
-            <Picker.Item label="18+" value="18plus" color={colorScheme === 'light' ? '#000' : '#fff'} />
-          </Picker>
+        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Available Boats and Training Equipment </ThemedText>
+        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Available Boats</ThemedText>
+        <ThemedView style={{ width: '100%', marginTop: 12 }}>
+          <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {boatOptions.map(opt => (
+              <Pressable key={opt.value} onPress={() => toggleBoat(opt.value)} style={[styles.button, {borderColor: selectedBoats.includes(opt.value) ? '#087ca3' : '#e4e4e4', backgroundColor: selectedBoats.includes(opt.value)? (colorScheme === 'light' ? '#e6f7ff' : '#003a4d'): (colorScheme === 'light' ? '#fff' : '#1a1a1a')}]}>
+                <ThemedText style={{ color: selectedBoats.includes(opt.value) ? '#087ca3' : (colorScheme === 'light' ? '#000' : '#fff'), fontWeight: selectedBoats.includes(opt.value) ? 'bold' : 'normal'}}> {opt.label} </ThemedText>
+              </Pressable>
+            ))}
+          </ThemedView>
         </ThemedView>
       </ThemedView>
 
+      <ThemedView style={styles.contentContainer}>
+        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
+          <Goal size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
+          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Games & Activities </ThemedText>
+        </ThemedView>
+        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Suggest games or activities to include in your session </ThemedText>
+        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Games to Play </ThemedText>
+        <ThemedView style={{ width: '100%', marginTop: 12 }}>
+          <TextInput style={[ styles.textBox,{ backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a', color: colorScheme === 'light' ? '#000' : '#fff', minHeight: 48}]} placeholder="E.g. Pirates, Tag, Relay Race..." placeholderTextColor={colorScheme === 'light' ? '#6b7280' : '#a3a3a3'}
+            multiline
+            numberOfLines={3}
+            value={games}
+            onChangeText={setGames}
+          />
+        </ThemedView>
+      </ThemedView>
+      <Pressable
+        style={({ pressed }) => [[styles.mainButton],{backgroundColor: pressed? (colorScheme === 'light' ? '#087ca3' : '#005073') : (colorScheme === 'light' ? '#0ea5e9' : '#087ca3')}]}
+        onPress={() => {
+          // TODO: Implement session plan generation logic
+          alert('Session plan generated!');
+        }}
+      >
+        <ThemedText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
+          Generate Session Plan
+        </ThemedText>
+      </Pressable>
     </ScrollView>
     </ThemedView>
   </>
@@ -304,5 +365,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 8,
   },
+  button: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  mainButton: {
+    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignSelf: 'center',
+    marginTop: 24,
+    marginBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  }
 
 });
