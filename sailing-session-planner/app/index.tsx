@@ -40,6 +40,7 @@ export default function HomeScreen() {
     );
   };
   const [games, setGames] = useState('');
+  const [sessionPlan, setSessionPlan] = useState<any>(null);
 
 
   return (
@@ -173,7 +174,8 @@ export default function HomeScreen() {
               <Picker.Item label="1 hour" value="1hour" />
               <Picker.Item label="2 hours" value="2hours" />
               <Picker.Item label="4 hours" value="4hours" />
-              <Picker.Item label="8 hours" value="8hours" />
+              <Picker.Item label="1 Day" value="6hours" />
+              <Picker.Item label="2 Days" value="12hours" />
             </Picker>
           </ThemedView>
       </ThemedView>
@@ -269,11 +271,57 @@ export default function HomeScreen() {
         <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Available Boats</ThemedText>
         <ThemedView style={{ width: '100%', marginTop: 12 }}>
           <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {boatOptions.map(opt => (
-              <Pressable key={opt.value} onPress={() => toggleBoat(opt.value)} style={[styles.button, {borderColor: selectedBoats.includes(opt.value) ? '#087ca3' : '#e4e4e4', backgroundColor: selectedBoats.includes(opt.value)? (colorScheme === 'light' ? '#e6f7ff' : '#003a4d'): (colorScheme === 'light' ? '#fff' : '#1a1a1a')}]}>
-                <ThemedText style={{ color: selectedBoats.includes(opt.value) ? '#087ca3' : (colorScheme === 'light' ? '#000' : '#fff'), fontWeight: selectedBoats.includes(opt.value) ? 'bold' : 'normal'}}> {opt.label} </ThemedText>
-              </Pressable>
-            ))}
+            {boatOptions.map(opt => {
+              const count = selectedBoats.filter(b => b === opt.value).length;
+              return (
+                <ThemedView key={opt.value} style={{ alignItems: 'center', marginRight: 12, marginBottom: 8 }}>
+                  <Pressable
+                    onPress={() => toggleBoat(opt.value)}
+                    style={[
+                      styles.button,
+                      {
+                        borderColor: count > 0 ? '#087ca3' : '#e4e4e4',
+                        backgroundColor: count > 0
+                          ? (colorScheme === 'light' ? '#e6f7ff' : '#003a4d')
+                          : (colorScheme === 'light' ? '#fff' : '#1a1a1a')
+                      }
+                    ]}
+                  >
+                    <ThemedText style={{
+                      color: count > 0 ? '#087ca3' : (colorScheme === 'light' ? '#000' : '#fff'),
+                      fontWeight: count > 0 ? 'bold' : 'normal'
+                    }}>
+                      {opt.label}
+                    </ThemedText>
+                  </Pressable>
+                  <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Pressable
+                      onPress={() => {
+                        setSelectedBoats(prev => prev.filter((b, i) => {
+                          // Remove only one instance from the end
+                          if (b === opt.value && prev.lastIndexOf(opt.value) === i) return false;
+                          return true;
+                        }));
+                      }}
+                      disabled={count === 0}
+                      style={{
+                        paddingHorizontal: 8,
+                        opacity: count === 0 ? 0.4 : 1
+                      }}
+                    >
+                      <ThemedText style={{ fontSize: 20, color: '#087ca3' }}>−</ThemedText>
+                    </Pressable>
+                    <ThemedText style={{ minWidth: 18, textAlign: 'center', fontSize: 16 }}>{count}</ThemedText>
+                    <Pressable
+                      onPress={() => setSelectedBoats(prev => [...prev, opt.value])}
+                      style={{ paddingHorizontal: 8 }}
+                    >
+                      <ThemedText style={{ fontSize: 20, color: '#087ca3' }}>+</ThemedText>
+                    </Pressable>
+                  </ThemedView>
+                </ThemedView>
+              );
+            })}
           </ThemedView>
         </ThemedView>
       </ThemedView>
@@ -297,14 +345,71 @@ export default function HomeScreen() {
       <Pressable
         style={({ pressed }) => [[styles.mainButton],{backgroundColor: pressed? (colorScheme === 'light' ? '#087ca3' : '#005073') : (colorScheme === 'light' ? '#0ea5e9' : '#087ca3')}]}
         onPress={() => {
-          // TODO: Implement session plan generation logic
-          alert('Session plan generated!');
+          const sessionInfo = {
+            instructorCount,
+            studentCount,
+            ageRange,
+            sessionLength: parseInt(sessionLength),
+            courseType,
+            course,
+            windSpeed,
+            gustSpeed,
+            tideStrength: tidal === "No" ? 0 : tideStrength,
+            tideDirection: tidal === "No" ? "N/A" : tideDirection,
+            waveHeight: parseFloat(waveHeight) || 0,
+            tidal: tidal === "Yes",
+            selectedBoats,
+            games: games.split(',').map(g => g.trim()).filter(g => g.length > 0),
+          };
+          const plan = generateSessionPlan(sessionInfo);
+          console.log('Generated Plan:', plan);
+          setSessionPlan(plan);
         }}
       >
         <ThemedText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
           Generate Session Plan
         </ThemedText>
       </Pressable>
+
+      {sessionPlan && (
+        <ThemedView style={[styles.contentContainer, { marginTop: 16 }]}> 
+          <ThemedText type="title" style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
+            Session Plan
+          </ThemedText>
+          <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Boats:</ThemedText>
+          {sessionPlan.boats && sessionPlan.boats.length > 0 ? (
+            sessionPlan.boats.map((boat: string, idx: number) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: '#2980b9' }}>• {boat}</ThemedText>
+            ))
+          ) : (
+            <ThemedText style={{ marginLeft: 8 }}>No boats selected.</ThemedText>
+          )}
+          <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Activities:</ThemedText>
+          {sessionPlan.activities && sessionPlan.activities.length > 0 ? (
+            sessionPlan.activities.map((activity: string, idx: number) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, marginBottom: 2 }}>• {activity}</ThemedText>
+            ))
+          ) : (
+            <ThemedText style={{ marginLeft: 8 }}>No activities selected.</ThemedText>
+          )}
+          {sessionPlan.safetyNotes && sessionPlan.safetyNotes.length > 0 && (
+            <>
+              <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Safety Notes:</ThemedText>
+              {sessionPlan.safetyNotes.map((note: string, idx: number) => (
+                <ThemedText key={idx} style={{ marginLeft: 8, color: '#e67e22' }}>• {note}</ThemedText>
+              ))}
+            </>
+          )}
+          {sessionPlan.recommendedGames && sessionPlan.recommendedGames.length > 0 && (
+            <>
+              <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Games:</ThemedText>
+              {sessionPlan.recommendedGames.map((game: string, idx: number) => (
+                <ThemedText key={idx} style={{ marginLeft: 8, color: '#16a085' }}>• {game}</ThemedText>
+              ))}
+            </>
+          )}
+        </ThemedView>
+      )}
     </ScrollView>
     </ThemedView>
   </>
