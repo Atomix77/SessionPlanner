@@ -26,6 +26,7 @@ export default function HomeScreen() {
   const [waveHeight, setWaveHeight] = useState('0');
   const [tidal, setTidal] = useState('No');
   const boatOptions = [
+            { label: 'Small Single Hander', value: 'smallSingle' },
             { label: 'Single Hander', value: 'single' },
             { label: 'Double Hander', value: 'double' },
             { label: 'Large Double Hander', value: 'largeDouble' },
@@ -139,7 +140,7 @@ export default function HomeScreen() {
                       { label: "Performance Sailing", value: "PerformanceSailing" },
                       { label: "Seamanship Skills", value: "Seamanship" },
                       { label: "Day Sailing", value: "DaySailing" },
-                      { label: "Sailing with Spinnaker", value: "SailingWithSpinnaker" },
+                      { label: "Sailing with Spinnakers", value: "SailingWithSpinnakers" },
                     ];
                     break;
                   case 'Race':
@@ -377,18 +378,44 @@ export default function HomeScreen() {
             Session Plan
           </ThemedText>
           <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Boats:</ThemedText>
-          {sessionPlan.boats && sessionPlan.boats.length > 0 ? (
-            sessionPlan.boats.map((boat: string, idx: number) => (
-              <ThemedText key={idx} style={{ marginLeft: 8, color: '#2980b9' }}>• {boat}</ThemedText>
+          {sessionPlan.allocatedBoats && sessionPlan.allocatedBoats.length > 0 ? (
+            sessionPlan.allocatedBoats.map((boat: string, idx: number) => (
+                <ThemedText key={idx} style={{ marginLeft: 8, color: '#2980b9' }}>
+                • {
+                  (() => {
+                  switch (boat) {
+                    case 'smallSingle': return 'Small Single Hander';
+                    case 'single': return 'Single Hander';
+                    case 'double': return 'Double Hander';
+                    case 'largeDouble': return 'Large Double Hander';
+                    case 'multi': return 'Multi-Crew';
+                    default: return boat;
+                  }
+                  })()
+                }
+                </ThemedText>
             ))
           ) : (
             <ThemedText style={{ marginLeft: 8 }}>No boats selected.</ThemedText>
           )}
           <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Activities:</ThemedText>
-          {sessionPlan.activities && sessionPlan.activities.length > 0 ? (
-            sessionPlan.activities.map((activity: string, idx: number) => (
-              <ThemedText key={idx} style={{ marginLeft: 8, marginBottom: 2 }}>• {activity}</ThemedText>
-            ))
+          {sessionPlan.activitiesWithTimings && sessionPlan.activitiesWithTimings.length > 0 ? (
+            sessionPlan.activitiesWithTimings.map(
+              (sectionItem: { section: string; activities: { name: string; duration: number }[] }, sectionIdx: number) =>
+                sectionItem.activities.length > 0 ? (
+                  <ThemedView key={sectionIdx} style={{ marginBottom: 8 }}>
+                    <ThemedText style={{ marginTop: 6, fontWeight: '600' }}>
+                      {sectionItem.section}
+                    </ThemedText>
+                    {sectionItem.activities.map((activity: { name: string; duration: number }, idx: number) => (
+                      <ThemedText key={idx} style={{ marginLeft: 12, marginBottom: 2 }}>
+                        • {activity.name}
+                        {activity.duration > 0 ? ` (${activity.duration} min)` : ""}
+                      </ThemedText>
+                    ))}
+                  </ThemedView>
+                ) : null
+            )
           ) : (
             <ThemedText style={{ marginLeft: 8 }}>No activities selected.</ThemedText>
           )}
