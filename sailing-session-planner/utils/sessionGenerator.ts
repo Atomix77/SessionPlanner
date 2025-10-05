@@ -13,6 +13,7 @@ interface SessionInfo {
     tidal: boolean;
     selectedBoats: string[];
     games: string[];
+    boatsPreRigged: boolean;
 }
 
 type CourseSection = {
@@ -23,7 +24,6 @@ type CourseSection = {
     general: string[];
     packdown: { [activity: string]: number };
 }
-
 function getCourseContent(course: string): {
     setup: { name: string; duration: number }[];
     practical: { name: string; duration: number }[];
@@ -35,18 +35,17 @@ function getCourseContent(course: string): {
     const courseContentMap: { [key: string]: CourseSection } = {
         "Stage1": {
             setup: {
-                "Understand personal safety equipment and what to wear (head, hands, feet, body)": 0,
-                "Put on personal buoyancy correctly": 0,
+                // "Understand personal safety equipment and what to wear (head, hands, feet, body)": 0,
+                // "Put on personal buoyancy correctly": 0,
                 "Assist with rigging a boat": 15,
-                "Launch a dinghy and get under way with instruction": 5,
+                // "Launch a dinghy and get under way with instruction": 5,
             },
             practical: {
-                "Paddle or row": 5,
-                "Steer on a reach and go about (reach to reach)": 30,
-                "Understand stopping, controlling speed, getting out of irons": 15,
-                "Prepare for a tow": 5,
-                "Steer when sailing and being towed": 5,
-                "Understand importance of staying with boat during capsize": 10
+                "Paddle or row": 10,
+                "Steer on a reach and go about (reach to reach)": 60,
+                "Understand stopping, controlling speed, getting out of irons": 30,
+                "Prepare for a tow and steer when sailing and being towed": 15,
+                "Understand importance of staying with boat during capsize": 15,
             },
             theory: {
                 "Name basic parts of a boat (hull, mast, rudder, tiller, centreboard, sheets)": 15,
@@ -64,7 +63,7 @@ function getCourseContent(course: string): {
                 "Understand effect of basic boat controls",
             ],
             packdown: {
-                "Secure boat to trolley": 0,
+                // "Secure boat to trolley": 0,
                 "Correct stowage of dinghy and gear": 15,
             }
         },
@@ -75,7 +74,7 @@ function getCourseContent(course: string): {
                 "Put a boat head to wind for rigging": 0,
                 "Rig a dinghy": 15,
                 "Manoeuvre a trolley safely (clear of boats and overhead cables)": 0,
-                "Launch and recover a small dinghy": 5,
+                // "Launch and recover a small dinghy": 5,
             },
             practical: {
                 "Control speed and stop by lying-to": 15,
@@ -351,7 +350,389 @@ function getCourseContent(course: string): {
         packdown: Object.entries(section.packdown).map(([name, duration]) => ({ name, duration })),
     };
 }
+type TimelineEntry = {
+    title: string;
+    section: string;
+    startMin: number;
+    endMin: number;
+    durationMin: number;
+    type: 'setup' | 'practical' | 'theory' | 'knots' | 'packdown' | 'transition' | 'break' | 'briefing' | 'debrief' | 'buffer' | 'games';
+    instructions?: string;
+    notes?: string[];
+};
 
+function buildDetailedTimeline(
+    sections: { section: string; activities: { name: string; duration: number }[] }[],
+    totalSessionMinutes: number,
+    generalSkills: string[],
+    safetyNotes: string[]
+): { timeline: TimelineEntry[]; totalPlannedMin: number; slackMinutes: number } {
+    const timeline: TimelineEntry[] = [];
+    let currentMin = 0;
+
+    const addEntry = (
+        title: string,
+        sectionLabel: string,
+        durationMin: number,
+        type: TimelineEntry['type'],
+        instructions?: string,
+        notes?: string[]
+    ) => {
+        const safeDuration = Math.max(0, Math.round(durationMin));
+        const entry: TimelineEntry = {
+            title,
+            section: sectionLabel,
+            startMin: currentMin,
+            endMin: currentMin + safeDuration,
+            durationMin: safeDuration,
+            type,
+            instructions,
+            notes,
+        };
+        timeline.push(entry);
+        currentMin += safeDuration;
+    };
+
+    const sectionInstruction: Record<string, { type: TimelineEntry['type']; intro: string }> = {
+        Setup: { type: "setup", intro: "Rig equipment and prepare for the session." },
+        Practical: { type: "practical", intro: "Coach on-water skills and reinforce confidence." },
+        Theory: { type: "theory", intro: "Run a focused classroom discussion linked to today’s drills." },
+        Knots: { type: "knots", intro: "Hands-on knot work tied to real scenarios." },
+        Packdown: { type: "packdown", intro: "Guide students through structured packdown and gear checks." },
+        Break: { type: "break", intro: "Lunch break: rehydrate, eat, warm up, and regroup before the next phase." },
+    };
+
+    const defaultDurations: Partial<Record<TimelineEntry['type'], number>> = {
+        setup: 0,
+        theory: 10,
+        practical: 15,
+        knots: 10,
+        packdown: 0,
+        break: 15,
+    };
+
+    const getTransition = (from: string | null, to: string): { title: string; duration: number; instructions: string } | null => {
+        if (!from || from === to) return null;
+        if (to === "Setup") {
+            return {
+                title: "Gear Up & Prepare",
+                duration: 15,
+                instructions: "Put on the required gear and ensure you’re properly equipped for the session.",
+            };
+        }
+        if (from === "Setup" && to === "Practical") {
+            return {
+                title: "Rigging Check & Launch",
+                duration: 5,
+                instructions: "Check rig settings, buddy pairs, and launch in sequence.",
+            };
+        }
+        if (from === "Practical" && to === "Break") {
+            return {
+                title: "Towel Off & Classroom Reset",
+                duration: 5,
+                instructions: "Secure boats, dry off, and regroup indoors for the de-briefing.",
+            };
+        }
+        if (from === "Theory" && to === "Practical") {
+            return {
+                title: "Apply Theory On-Water",
+                duration: 5,
+                instructions: "Gather kit, head to the boats, and set up for the next drill.",
+            };
+        }
+        if (to === "Break") {
+            return {
+                title: "Gear Down & Pause",
+                duration: 5,
+                instructions: "Secure boats, hydrate, and regroup before the break activities.",
+            };
+        }
+        if (from === "Break" && to === "Theory") {
+            return {
+                title: "Regroup Indoors",
+                duration: 5,
+                instructions: "Head inside, settle groups, and prepare materials for the theory segment.",
+            };
+        }
+        if (from === "Break" && to === "Knots") {
+            return {
+                title: "Set Up Knot Stations",
+                duration: 5,
+                instructions: "Lay out ropes, assign partners, and brief the next activity focus.",
+            };
+        }
+        if (from === "Break" && to === "Practical") {
+            return {
+                title: "Re-launch & Warm Up",
+                duration: 5,
+                instructions: "Check rigs, refresh safety points, and head back on the water.",
+            };
+        }
+        if (from === "Practical" && to === "Packdown") {
+            return {
+                title: "Return to Shore",
+                duration: 10,
+                instructions: "Land safely and prepare boats for de-rigging.",
+            };
+        }
+        if (to === "Packdown") {
+            return {
+                title: "Transition to Packdown",
+                duration: 5,
+                instructions: "Gather as a group, assign packdown roles, and prepare cleaning gear.",
+            };
+        }
+        return null;
+    };
+
+    type SectionBlock = { section: string; activities: { name: string; duration: number }[] };
+
+    const sectionQueue: SectionBlock[] = sections
+        .map(block => ({
+            section: block.section,
+            activities: block.activities.map(activity => ({
+                name: activity.name,
+                duration: activity.duration,
+            })),
+        }))
+        .filter(block => block.activities.length > 0);
+
+    const computeDuration = (activityDuration: number, metaType: TimelineEntry['type']): number => {
+        if (activityDuration && activityDuration > 0) {
+            return activityDuration;
+        }
+        const fallback = defaultDurations[metaType];
+        return typeof fallback === "number" ? fallback : 0;
+    };
+
+    let previousSection: string | null = null;
+    let breakInserted = false;
+    let safetyBriefingInserted = false;
+    let afterBreakActive = false;
+    let postBreakPracticalAdded = false;
+
+    const addTransitionFrom = (from: string | null, to: string) => {
+        const transition = getTransition(from, to);
+        if (transition) {
+            addEntry(
+                transition.title,
+                "Transition",
+                transition.duration,
+                "transition",
+                transition.instructions
+            );
+        }
+    };
+
+    const maybeAddSafetyBriefing = () => {
+        if (safetyBriefingInserted) return;
+        const briefingDuration = Math.min(15, Math.max(5, Math.max(safetyNotes.length, 1) * 5));
+        addEntry(
+            "Safety & Conditions Briefing",
+            "Briefing",
+            briefingDuration,
+            "briefing",
+            "Review weather, tides, launching plan, and emergency actions before heading out.",
+            safetyNotes
+        );
+        safetyBriefingInserted = true;
+    };
+
+    const maybeInsertBreak = (remainingActivities: { name: string; duration: number }[]): boolean => {
+        if (breakInserted) return false;
+        const breakThreshold = totalSessionMinutes <= 240 ? 120 : 150;
+        if (currentMin < breakThreshold) return false;
+
+        breakInserted = true;
+        const breakDuration = totalSessionMinutes <= 240 ? 30 : 60;
+        const breakBlock: SectionBlock = {
+            section: "Break",
+            activities: [{ name: "Mid-Session Break", duration: breakDuration }],
+        };
+
+        const queuedAfterCurrent = sectionQueue.splice(0);
+        const theoryBlocks: SectionBlock[] = [];
+        const knotBlocks: SectionBlock[] = [];
+        const otherBlocks: SectionBlock[] = [];
+
+        for (const queued of queuedAfterCurrent) {
+            if (queued.activities.length === 0) continue;
+            if (queued.section === "Theory") {
+                theoryBlocks.push(queued);
+            } else if (queued.section === "Knots") {
+                knotBlocks.push(queued);
+            } else {
+                otherBlocks.push(queued);
+            }
+        }
+
+        const reordered: SectionBlock[] = [breakBlock, ...theoryBlocks, ...knotBlocks];
+
+        if (remainingActivities.length > 0) {
+            reordered.push({
+                section: "Practical",
+                activities: remainingActivities.map(activity => ({ ...activity })),
+            });
+        }
+
+        reordered.push(...otherBlocks);
+        sectionQueue.push(...reordered);
+        return true;
+    };
+
+    const maybeQueuePostBreakPractical = () => {
+        if (!afterBreakActive || postBreakPracticalAdded) {
+            return;
+        }
+
+        const hasMoreTheoryOrKnots = sectionQueue.some(item =>
+            (item.section === "Theory" || item.section === "Knots") && item.activities.length > 0
+        );
+        if (hasMoreTheoryOrKnots) {
+            return;
+        }
+
+        const upcomingPractical = sectionQueue.some(item => item.section === "Practical" && item.activities.length > 0);
+        if (upcomingPractical) {
+            return;
+        }
+
+        const queuedDuration = sectionQueue.reduce(
+            (sum, queued) => sum + queued.activities.reduce((acc, activity) => acc + (activity.duration || 0), 0),
+            0
+        );
+        const availableMinutes = Math.max(0, totalSessionMinutes - currentMin - queuedDuration);
+        const targetDuration = totalSessionMinutes >= 360 ? 45 : totalSessionMinutes >= 300 ? 35 : 25;
+        const extraDuration = Math.min(targetDuration, availableMinutes);
+
+        if (extraDuration >= 10) {
+            sectionQueue.unshift({
+                section: "Practical",
+                activities: [{ name: "Consolidation On-Water Drills", duration: extraDuration }],
+            });
+            postBreakPracticalAdded = true;
+        }
+    };
+
+    while (sectionQueue.length > 0) {
+        const block = sectionQueue.shift()!;
+        if (block.activities.length === 0) {
+            continue;
+        }
+
+        const metaConfig = sectionInstruction[block.section];
+        const metaType: TimelineEntry['type'] = metaConfig?.type ?? "practical";
+        const intro = metaConfig?.intro ?? `Lead the ${block.section.toLowerCase()} block.`;
+
+        if (block.section === "Practical") {
+            maybeAddSafetyBriefing();
+            addTransitionFrom(previousSection, "Practical");
+
+            const lastEntry = timeline[timeline.length - 1];
+            if (!lastEntry || lastEntry.title !== "Rigging Check & Launch") {
+                addEntry(
+                    "Rigging Check & Launch",
+                    "Transition",
+                    5,
+                    "transition",
+                    "Check rig tension, buddy pairs, and launch in sequence."
+                );
+            }
+
+            for (let idx = 0; idx < block.activities.length; idx++) {
+                const activity = block.activities[idx];
+                const duration = computeDuration(activity.duration, metaType);
+                const instructions = idx === 0
+                    ? `${intro} Focus on developing practical sailing skills and confidence during "${activity.name}".`
+                    : `Focus on developing practical sailing skills and confidence during "${activity.name}".`;
+                addEntry(activity.name, block.section, duration, metaType, instructions);
+
+                if (afterBreakActive) {
+                    postBreakPracticalAdded = true;
+                    afterBreakActive = false;
+                }
+
+                const remainingActivities = block.activities.slice(idx + 1);
+                const breakTriggered = maybeInsertBreak(remainingActivities);
+                if (breakTriggered) {
+                    break;
+                }
+            }
+
+            maybeInsertBreak([]);
+        } else {
+            if (block.section === "Break") {
+                addTransitionFrom(previousSection, "Break");
+                afterBreakActive = true;
+                postBreakPracticalAdded = false;
+            } else {
+                addTransitionFrom(previousSection, block.section);
+            }
+
+            block.activities.forEach((activity, idx) => {
+                const duration = computeDuration(activity.duration, metaType);
+                const instructions = idx === 0
+                    ? `${intro} Focus on developing essential onshore sailing skills and confidence during "${activity.name}".`
+                    : `Focus on developing essential onshore sailing skills and confidence during "${activity.name}".`;
+                addEntry(activity.name, block.section, duration, metaType, instructions);
+            });
+
+            if ((block.section === "Theory" || block.section === "Knots") && afterBreakActive) {
+                maybeQueuePostBreakPractical();
+            }
+
+            if (block.section === "Packdown") {
+                afterBreakActive = false;
+            }
+        }
+
+        previousSection = block.section;
+    }
+
+    const totalPlannedMin = currentMin;
+    const slackMinutes = Math.max(totalSessionMinutes - totalPlannedMin, 0);
+
+    return { timeline, totalPlannedMin, slackMinutes };
+}
+
+function createPlanSummary(
+    practical: { name: string; duration: number }[],
+    theory: { name: string; duration: number }[],
+    knots: { name: string; duration: number }[],
+    recommendedGames: string[],
+    slackMinutes: number
+): string {
+    const practicalFocus = practical.length > 0
+        ? practical.slice(0, 2).map(item => item.name).join(', ')
+        : 'core boat handling skills';
+    const theoryFocus = theory.length > 0 ? theory[0].name.toLowerCase() : null;
+    const knotFocus = knots.length > 0 ? knots[0].name.toLowerCase() : null;
+    const funElement = recommendedGames.length > 0 ? recommendedGames[0] : null;
+
+    const parts: string[] = [
+        `Primary focus on ${practicalFocus}.`,
+    ];
+
+    if (theoryFocus) {
+        parts.push(`Theory block reinforces ${theoryFocus}.`);
+    }
+    if (knotFocus) {
+        parts.push(`Knot workshop covers ${knotFocus}.`);
+    }
+    if (!theoryFocus && !knotFocus) {
+        parts.push('Condensed schedule keeps the group on the water for the full slot.');
+    }
+
+    if (funElement) {
+        parts.push(`Planned energiser: ${funElement}.`);
+    }
+    if (slackMinutes >= 5) {
+        parts.push(`Includes ${slackMinutes} minutes of adaptable buffer time.`);
+    }
+
+    return parts.join(' ');
+}
 export function generateSessionPlan(sessionInfo: SessionInfo) {
     const {
         instructorCount,
@@ -368,35 +749,32 @@ export function generateSessionPlan(sessionInfo: SessionInfo) {
         tidal,
         selectedBoats,
         games,
+        boatsPreRigged,
     } = sessionInfo;
 
     let safetyNotes: string[] = [];
     let recommendedGames: string[] = [];
-    const allocatedBoats = [];
+    const allocatedBoats: string[] = [];
+    const plannerNotes: string[] = [];
     const courseContent = getCourseContent(course);
+    const userSelectedGames = games.map(g => g.trim()).filter(g => g.length > 0);
 
-    // Safety Checks
-    // Safety Checks (optimized)
     if (windSpeed >= 15 || gustSpeed >= 25) {
-        safetyNotes.push(courseType === 'Youth'
-            ? "High wind conditions. Consider reducing the number of boats and sail area."
-            : "High wind conditions. Reduce sail area.");
+        safetyNotes.push("High wind: reduce sail area and boat numbers.");
     }
     if (tidal && tideStrength > 3) {
-        safetyNotes.push("Strong tides expected. Ensure all participants are briefed on tidal conditions.");
+        safetyNotes.push("Strong tide: ensure all are competent swimmers.");
     }
     if (tidal && waveHeight > 1) {
-        safetyNotes.push("Choppy water conditions expected. Ensure all participants are competent swimmers.");
+        safetyNotes.push("Choppy water: brief on tidal conditions.");
     }
     if (tidal && tideDirection === 'Ebb' && windSpeed > 10) {
-        safetyNotes.push("Ebb tide with strong wind. Extra caution advised.");
+        safetyNotes.push("Ebb tide + wind: extra caution advised.");
     }
 
-    //Boat Allocation Logic
     if (selectedBoats.length === 0) {
         safetyNotes.push("No boats selected. Please select at least one type of boat.");
     } else {
-        // Map boat types to their default capacities
         const boatCapacities: { [key: string]: number } = {
             smallsingle: 0,
             single: 1,
@@ -411,20 +789,16 @@ export function generateSessionPlan(sessionInfo: SessionInfo) {
             largedouble: 4,
             multi: 6,
         };
-        // Calculate total capacity based on selected boats
         const capacities = courseType === 'Youth' ? youthBoatCapacities : boatCapacities;
         let allocated = 0;
-        // Allocate as many of the same type of boats as possible (prefer first selected)
-        // Allocate boats, removing each selected boat from available list as it's used
         let availableBoats = [...selectedBoats];
         while (allocated < studentCount && availableBoats.length > 0) {
             const boat = availableBoats[0];
             const capacity = capacities[boat.toLowerCase()];
             if (capacity > 0) {
-            allocatedBoats.push(boat);
-            allocated += capacity;
+                allocatedBoats.push(boat);
+                allocated += capacity;
             }
-            // Remove the used boat from the list
             availableBoats.shift();
         }
         if (allocated < studentCount) {
@@ -432,69 +806,212 @@ export function generateSessionPlan(sessionInfo: SessionInfo) {
         }
     }
 
+    const defaultLongSessionGames = ['Pirates', 'Tag', 'Follow the Leader'];
+    const baseGameDuration = sessionLength >= 4 ? 20 : sessionLength >= 3 ? 15 : 10;
+
     // Suggest games if included and conditions are safe
-    if (windSpeed < 15 && tideStrength < 3) {
-        if (games.length > 0) {
-            recommendedGames = games;
+    if (windSpeed < 15 && tideStrength < 3 && sessionLength >= 120) {
+        if (userSelectedGames.length > 0) {
+            recommendedGames = [...userSelectedGames];
         } else {
-            recommendedGames = ['Pirates', 'Tag', 'Follow the Leader'];
+            recommendedGames = [...defaultLongSessionGames];
         }
+    }
+    if (recommendedGames.length === 0 && userSelectedGames.length > 0) {
+        recommendedGames = [...userSelectedGames];
+    }
+    if (sessionLength > 2 && recommendedGames.length === 0) {
+        recommendedGames = userSelectedGames.length > 0
+            ? [...userSelectedGames]
+            : [...defaultLongSessionGames];
+    }
+
+    function selectSequencedActivities(
+        items: { name: string; duration: number }[],
+        timeLimit: number,
+        options?: { ensureAtLeast?: number }
+    ): { name: string; duration: number }[] {
+        const minCount = options?.ensureAtLeast ?? 0;
+        const sanitized = items.map(item => ({
+            name: item.name,
+            duration: item.duration && item.duration > 0 ? item.duration : 5,
+        }));
+        if (sanitized.length === 0) {
+            return Array.from({ length: minCount }, (_, idx) => ({
+                name: `Instructor-led focus block ${idx + 1}`,
+                duration: 0,
+            }));
+        }
+        const selected: { name: string; duration: number }[] = [];
+        let remaining = Math.max(0, timeLimit);
+
+        for (const activity of sanitized) {
+            if (remaining <= 0 && selected.length >= minCount) {
+                break;
+            }
+
+            if (remaining <= 0) {
+                selected.push({ name: `${activity.name} (overview)`, duration: 0 });
+                continue;
+            }
+
+            const take = Math.min(activity.duration, remaining);
+            const label = take < activity.duration ? `${activity.name} (condensed)` : activity.name;
+            selected.push({ name: label, duration: take });
+            remaining -= take;
+        }
+
+        if (selected.length < minCount) {
+            const deficit = minCount - selected.length;
+            for (let i = selected.length; i < selected.length + deficit; i++) {
+                const item = sanitized[i % sanitized.length] ?? { name: `Skill Focus ${i + 1}`, duration: 0 };
+                selected.push({ name: `${item.name} (overview)`, duration: 0 });
+            }
+        }
+
+        return selected;
     }
 
     // Get all items with durations
-    const setupItems = courseContent.setup || [];
+    const setupSource = courseContent.setup || [];
+    let setupItems = setupSource.map(item => ({ ...item }));
+    if (boatsPreRigged && setupItems.length > 0) {
+        setupItems = [];
+        plannerNotes.push("Boats pre-rigged: setup stage skipped; fold safety checks into the initial briefing.");
+    }
+
     const packdownItems = courseContent.packdown || [];
-    const practicalItems = courseContent.practical || [];
-    const theoryItems = courseContent.theory || [];
-    const knotItems = courseContent.knots || [];
+    let practicalItems = (courseContent.practical || []).map(item => ({ ...item }));
+    let theoryItems = (courseContent.theory || []).map(item => ({ ...item }));
+    let knotItems = (courseContent.knots || []).map(item => ({ ...item }));
     const generalSkills = courseContent.general || [];
 
+    const isShortSession = sessionLength <= 2;
+    const isLongSession = sessionLength > 2;
+    if (isShortSession) {
+        theoryItems = [];
+        knotItems = [];
+        plannerNotes.push("Session under 2 hours: prioritised practical coaching, theory and knots deferred.");
+    }
+
     // Calculate available time after setup/packdown
-    // Calculate total duration of setup items
     const setupTime = setupItems.reduce((sum, item) => sum + item.duration, 0);
     const packdownTime = packdownItems.reduce((sum, item) => sum + item.duration, 0);
     const totalSessionTime = sessionLength * 60;
     const availableTime = totalSessionTime - setupTime - packdownTime;
 
-    // Allocate time based on preference
-    const practicalTime = Math.floor(availableTime * 0.70);
-    const theoryTime = Math.floor(availableTime * 0.20);
-    const knotTime = availableTime - practicalTime - theoryTime;
+    // Dynamic time allocation based on available activities
+    const sectionCount = [practicalItems, theoryItems, knotItems].filter(arr => arr.length > 0).length;
+    let practicalTime: number;
+    let theoryTime: number;
+    let knotTime: number;
 
-    // Select activities to fit allocated time
-    function selectActivities(items: { name: string, duration: number }[], timeLimit: number) {
-        const selected: string[] = [];
-        let used = 0;
-        for (const item of items) {
-            if (used + item.duration <= timeLimit) {
-                selected.push(item.name);
-                used += item.duration;
-            }
-        }
-        return selected;
+    if (isShortSession) {
+        practicalTime = Math.max(availableTime, 0);
+        theoryTime = 0;
+        knotTime = 0;
+    } else {
+        practicalTime = sectionCount ? Math.floor(availableTime * (practicalItems.length > 0 ? 0.6 : 0)) : 0;
+        theoryTime = sectionCount ? Math.floor(availableTime * (theoryItems.length > 0 ? 0.25 : 0)) : 0;
+        knotTime = availableTime - practicalTime - theoryTime;
     }
 
+    // Pick varied activities
+    const selectedPractical = selectSequencedActivities(practicalItems, practicalTime, { ensureAtLeast: 2 });
+    const selectedTheory = theoryTime > 0 && theoryItems.length > 0
+        ? selectSequencedActivities(theoryItems, theoryTime, { ensureAtLeast: 1 })
+        : [];
+    const selectedKnots = knotTime > 0 && knotItems.length > 0
+        ? selectSequencedActivities(knotItems, knotTime, { ensureAtLeast: 1 })
+        : [];
 
-    const selectedPractical = selectActivities(practicalItems, practicalTime);
-    const selectedTheory = selectActivities(theoryItems, theoryTime);
-    const selectedKnots = selectActivities(knotItems, knotTime);
-
-    // Final activity list with timings
     const activitiesWithTimings = [
         { section: "Setup", activities: setupItems.map(item => ({ name: item.name, duration: item.duration })) },
-        { section: "Practical", activities: practicalItems.filter(item => selectedPractical.includes(item.name)) },
-        { section: "Theory", activities: theoryItems.filter(item => selectedTheory.includes(item.name)) },
-        { section: "Knots", activities: knotItems.filter(item => selectedKnots.includes(item.name)) },
+        { section: "Practical", activities: selectedPractical },
+        { section: "Theory", activities: selectedTheory },
+        { section: "Knots", activities: selectedKnots },
         { section: "Packdown", activities: packdownItems.map(item => ({ name: item.name, duration: item.duration })) },
-    ];
+    ].filter(block => block.activities.length > 0);
+
+    const timelineResult = buildDetailedTimeline(
+        activitiesWithTimings,
+        totalSessionTime,
+        generalSkills,
+        safetyNotes
+    );
+    let { timeline, totalPlannedMin, slackMinutes } = timelineResult;
+
+    const gamesToSchedule = isLongSession
+        ? (recommendedGames.length > 0 ? recommendedGames : userSelectedGames)
+        : userSelectedGames;
+    const shouldScheduleGames = gamesToSchedule.length > 0 && (isLongSession || userSelectedGames.length > 0);
+
+    if (shouldScheduleGames) {
+        const timelineWithGames: TimelineEntry[] = [...timeline];
+        let currentStart = totalPlannedMin;
+        let slackRemaining = Math.max(totalSessionTime - totalPlannedMin, 0);
+        const trimmedGames: string[] = [];
+
+        gamesToSchedule.forEach((game) => {
+            if (slackRemaining <= 0) {
+                trimmedGames.push(game);
+                return;
+            }
+
+            const duration = Math.min(baseGameDuration, slackRemaining);
+            if (duration <= 0) {
+                trimmedGames.push(game);
+                return;
+            }
+
+            timelineWithGames.push({
+                title: game,
+                section: "Games",
+                startMin: currentStart,
+                endMin: currentStart + duration,
+                durationMin: duration,
+                type: 'games',
+                instructions: `Celebrate progression with "${game}" to end on a high and reinforce teamwork.`,
+            });
+            currentStart += duration;
+            slackRemaining = Math.max(slackRemaining - duration, 0);
+        });
+
+        if (trimmedGames.length > 0) {
+            plannerNotes.push(`Games ${trimmedGames.join(', ')} listed as optional cool-downs if time allows at the finish.`);
+        } else if (isLongSession && userSelectedGames.length === 0 && recommendedGames.length > 0) {
+            plannerNotes.push("Added default long-session games to keep energy up before packdown.");
+        } else {
+            plannerNotes.push("Games scheduled to close the session with energy and fun.");
+        }
+
+        timeline = timelineWithGames;
+        totalPlannedMin = currentStart;
+        slackMinutes = Math.max(totalSessionTime - currentStart, 0);
+    }
+
+    const recommendedGamesDisplay = recommendedGames.map(game => `${game} (${baseGameDuration} min)`);
+
+    const planSummary = createPlanSummary(
+        selectedPractical,
+        selectedTheory,
+        selectedKnots,
+        recommendedGamesDisplay,
+        slackMinutes
+    );
 
     // Add timings and general skills to output
     return {
         courseContent,
         allocatedBoats,
         activitiesWithTimings,
+        timeline,
         generalSkills,
         safetyNotes,
-        recommendedGames,
+    recommendedGames: recommendedGamesDisplay,
+        planSummary,
+        totalPlannedMin,
+        slackMinutes,
+        plannerNotes,
     };
 }

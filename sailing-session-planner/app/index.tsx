@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
-import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput, Pressable } from 'react-native';
+import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput, Pressable, Switch } from 'react-native';
 import { useState } from 'react';
 import { Compass, Goal, Users, Wind, Sailboat, Info } from "lucide-react"
 import { Picker } from '@react-native-picker/picker';
@@ -33,6 +33,7 @@ export default function HomeScreen() {
             { label: 'Multi-Crew', value: 'multi' },
           ];
   const [selectedBoats, setSelectedBoats] = useState<string[]>([]);
+  const [boatsPreRigged, setBoatsPreRigged] = useState(false);
   const toggleBoat = (boat: string) => {
     setSelectedBoats(prev =>
       prev.includes(boat)
@@ -43,6 +44,18 @@ export default function HomeScreen() {
   const [games, setGames] = useState('');
   const [sessionPlan, setSessionPlan] = useState<any>(null);
 
+  const formatMinutes = (mins: number): string => {
+    if (!Number.isFinite(mins) || mins < 0) return '00:00';
+    const hours = Math.floor(mins / 60);
+    const minutes = mins % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  };
+
+  const formatRangeLabel = (start: number, end: number): string => {
+    const startLabel = formatMinutes(start);
+    const endLabel = formatMinutes(end);
+    return `${startLabel} - ${endLabel}`;
+  };
 
   return (
   <>
@@ -270,6 +283,7 @@ export default function HomeScreen() {
         </ThemedView>
         <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Available Boats and Training Equipment </ThemedText>
         <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Available Boats</ThemedText>
+
         <ThemedView style={{ width: '100%', marginTop: 12 }}>
           <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {boatOptions.map(opt => {
@@ -325,6 +339,19 @@ export default function HomeScreen() {
             })}
           </ThemedView>
         </ThemedView>
+
+        <ThemedView style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <ThemedText style={{ fontSize: 18, fontWeight: '500' }}>Boats pre-rigged?</ThemedText>
+          <Switch
+            value={boatsPreRigged}
+            onValueChange={setBoatsPreRigged}
+            trackColor={{ false: colorScheme === 'light' ? '#d1d5db' : '#374151', true: colorScheme === 'light' ? '#7dd3fc' : '#0ea5e9' }}
+            thumbColor={boatsPreRigged ? '#087ca3' : (colorScheme === 'light' ? '#f9fafb' : '#f3f4f6')}
+          />
+        </ThemedView>
+        <ThemedText style={{ marginTop: 6, color: colorScheme === 'light' ? '#6b7280' : '#9ca3af' }}>
+          Enable if boats are already rigged so setup focuses on quick safety inspections.
+        </ThemedText>
       </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
@@ -361,6 +388,7 @@ export default function HomeScreen() {
             tidal: tidal === "Yes",
             selectedBoats,
             games: games.split(',').map(g => g.trim()).filter(g => g.length > 0),
+            boatsPreRigged,
           };
           const plan = generateSessionPlan(sessionInfo);
           console.log('Generated Plan:', plan);
@@ -371,18 +399,26 @@ export default function HomeScreen() {
           Generate Session Plan
         </ThemedText>
       </Pressable>
-
       {sessionPlan && (
-        <ThemedView style={[styles.contentContainer, { marginTop: 16 }]}> 
-          <ThemedText type="title" style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
-            Session Plan
+      <ThemedView style={[styles.contentContainer, { marginTop: 16 }]}> 
+        <ThemedText type="title" style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
+          Session Plan
+        </ThemedText>
+
+        {/* Summary */}
+        {sessionPlan.planSummary && (
+          <ThemedText style={{ marginBottom: 12, fontStyle: 'italic', color: '#555' }}>
+            {sessionPlan.planSummary}
           </ThemedText>
-          <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Boats:</ThemedText>
-          {sessionPlan.allocatedBoats && sessionPlan.allocatedBoats.length > 0 ? (
-            sessionPlan.allocatedBoats.map((boat: string, idx: number) => (
-                <ThemedText key={idx} style={{ marginLeft: 8, color: '#2980b9' }}>
-                • {
-                  (() => {
+        )}
+
+        {/* Boats */}
+        <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Boats:</ThemedText>
+        {sessionPlan.allocatedBoats && sessionPlan.allocatedBoats.length > 0 ? (
+          sessionPlan.allocatedBoats.map((boat: string, idx: number) => (
+            <ThemedText key={idx} style={{ marginLeft: 8, color: '#2980b9' }}>
+              • {
+                (() => {
                   switch (boat) {
                     case 'smallSingle': return 'Small Single Hander';
                     case 'single': return 'Single Hander';
@@ -391,52 +427,143 @@ export default function HomeScreen() {
                     case 'multi': return 'Multi-Crew';
                     default: return boat;
                   }
-                  })()
-                }
+                })()
+              }
+            </ThemedText>
+          ))
+        ) : (
+          <ThemedText style={{ marginLeft: 8 }}>No boats selected.</ThemedText>
+        )}
+
+        <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Timeline:</ThemedText>
+        {sessionPlan.timeline && sessionPlan.timeline.length > 0 ? (
+          sessionPlan.timeline.map((item: any, idx: number) => {
+            const inferType = (title: string): 'setup' | 'theory' | 'practical' | 'packdown' | 'break' | 'general' => {
+              const lower = title.toLowerCase();
+              if (lower.includes('setup') || lower.includes('brief')) return 'setup';
+              if (lower.includes('theory') || lower.includes('classroom') || lower.includes('discussion') || lower.includes('explain')) return 'theory';
+              if (lower.includes('sail') || lower.includes('practice') || lower.includes('drill') || lower.includes('on-water')) return 'practical';
+              if (lower.includes('pack') || lower.includes('stow') || lower.includes('end')) return 'packdown';
+              if (lower.includes('break') || lower.includes('lunch')) return 'break';
+              return 'general';
+            };
+
+            const title = item.title || item.name || 'Untitled Activity';
+            const type = item.type || inferType(title);
+            const timeRange = formatRangeLabel(item.startMin, item.endMin);
+            const duration = typeof item.durationMin === 'number' ? `${item.durationMin} min` : '';
+            const typeColors: Record<string, string> = {
+              setup: '#3498db',     // blue
+              theory: '#f1c40f',    // yellow
+              practical: '#2ecc71', // green
+              packdown: '#e74c3c',  // red
+              break: '#9b59b6',     // purple
+              general: '#95a5a6',   // grey
+              knots: '#16a085',    // teal
+              games: '#ff7f11',    // orange
+            };
+
+            const color = typeColors[type] || '#7f8c8d';
+
+            return (
+              <ThemedView key={idx} style={{ marginVertical: 4 }}>
+                <ThemedText style={{ fontWeight: '600', color }}>
+                  {timeRange ? `${timeRange} • ` : '• '}
+                  {title} {duration ? `(${duration})` : ''}
                 </ThemedText>
-            ))
-          ) : (
-            <ThemedText style={{ marginLeft: 8 }}>No boats selected.</ThemedText>
-          )}
-          <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Activities:</ThemedText>
-          {sessionPlan.activitiesWithTimings && sessionPlan.activitiesWithTimings.length > 0 ? (
-            sessionPlan.activitiesWithTimings.map(
-              (sectionItem: { section: string; activities: { name: string; duration: number }[] }, sectionIdx: number) =>
-                sectionItem.activities.length > 0 ? (
-                  <ThemedView key={sectionIdx} style={{ marginBottom: 8 }}>
-                    <ThemedText style={{ marginTop: 6, fontWeight: '600' }}>
-                      {sectionItem.section}
-                    </ThemedText>
-                    {sectionItem.activities.map((activity: { name: string; duration: number }, idx: number) => (
-                      <ThemedText key={idx} style={{ marginLeft: 12, marginBottom: 2 }}>
-                        • {activity.name}
-                        {activity.duration > 0 ? ` (${activity.duration} min)` : ""}
+                {item.instructions && (
+                  <ThemedText style={{ marginLeft: 12, color: '#555' }}>
+                    {item.instructions}
+                  </ThemedText>
+                )}
+                {Array.isArray(item.items) && item.items.length > 0 && (
+                  <ThemedView style={{ marginLeft: 12 }}>
+                    {item.items.map((activity: any, activityIdx: number) => (
+                      <ThemedText key={activityIdx} style={{ color: '#555' }}>
+                        • {typeof activity === 'string' ? activity : activity?.name ?? JSON.stringify(activity)}
                       </ThemedText>
                     ))}
                   </ThemedView>
-                ) : null
-            )
-          ) : (
-            <ThemedText style={{ marginLeft: 8 }}>No activities selected.</ThemedText>
-          )}
-          {sessionPlan.safetyNotes && sessionPlan.safetyNotes.length > 0 && (
-            <>
-              <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Safety Notes:</ThemedText>
-              {sessionPlan.safetyNotes.map((note: string, idx: number) => (
-                <ThemedText key={idx} style={{ marginLeft: 8, color: '#e67e22' }}>• {note}</ThemedText>
-              ))}
-            </>
-          )}
-          {sessionPlan.recommendedGames && sessionPlan.recommendedGames.length > 0 && (
-            <>
-              <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Games:</ThemedText>
-              {sessionPlan.recommendedGames.map((game: string, idx: number) => (
-                <ThemedText key={idx} style={{ marginLeft: 8, color: '#16a085' }}>• {game}</ThemedText>
-              ))}
-            </>
-          )}
-        </ThemedView>
-      )}
+                )}
+                {Array.isArray(item.safetyNotes) && item.safetyNotes.length > 0 && (
+                  <ThemedView style={{ marginLeft: 12 }}>
+                    {item.safetyNotes.map((note: string, noteIdx: number) => (
+                      <ThemedText key={noteIdx} style={{ color: '#e67e22' }}>
+                        ⚠️ {note}
+                      </ThemedText>
+                    ))}
+                  </ThemedView>
+                )}
+              </ThemedView>
+            );
+          })
+        ) : (
+          <ThemedText style={{ marginLeft: 8 }}>No planned timeline.</ThemedText>
+        )}
+
+        {sessionPlan.plannerNotes && sessionPlan.plannerNotes.length > 0 && (
+          <>
+            <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Planner Notes:</ThemedText>
+            {sessionPlan.plannerNotes.map((note: string, idx: number) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: '#555' }}>
+                • {note}
+              </ThemedText>
+            ))}
+          </>
+        )}
+
+        {(sessionPlan.totalPlannedMin || sessionPlan.slackMinutes) && (
+          <>
+            <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Timing Overview:</ThemedText>
+            {typeof sessionPlan.totalPlannedMin === 'number' && (
+              <ThemedText style={{ marginLeft: 8 }}>
+                Planned duration: {sessionPlan.totalPlannedMin} minutes
+              </ThemedText>
+            )}
+            {typeof sessionPlan.slackMinutes === 'number' && (
+              <ThemedText style={{ marginLeft: 8 }}>
+                Reserved slack: {sessionPlan.slackMinutes} minutes
+              </ThemedText>
+            )}
+          </>
+        )}
+
+        {/* Safety Notes */}
+        {sessionPlan.safetyNotes && sessionPlan.safetyNotes.length > 0 && (
+          <>
+            <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Safety Notes:</ThemedText>
+            {sessionPlan.safetyNotes.map((note: string, idx: number) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: '#e67e22' }}>
+                • {note}
+              </ThemedText>
+            ))}
+          </>
+        )}
+
+        {/* Recommended Games */}
+        {sessionPlan.recommendedGames && sessionPlan.recommendedGames.length > 0 && (
+          <>
+            <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Games:</ThemedText>
+            {sessionPlan.recommendedGames.map((game: string, idx: number) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: '#16a085' }}>
+                • {game}
+              </ThemedText>
+            ))}
+          </>
+        )}
+
+        {/* Metadata */}
+        {sessionPlan.metadata && (
+          <>
+            <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Session Details:</ThemedText>
+            <ThemedText style={{ marginLeft: 8 }}>Weather: {sessionPlan.metadata.weather}</ThemedText>
+            <ThemedText style={{ marginLeft: 8 }}>Wind: {sessionPlan.metadata.windSpeed} knots</ThemedText>
+            <ThemedText style={{ marginLeft: 8 }}>Tide: {sessionPlan.metadata.tide}</ThemedText>
+            <ThemedText style={{ marginLeft: 8 }}>Group Size: {sessionPlan.metadata.groupSize}</ThemedText>
+          </>
+        )}
+      </ThemedView>
+    )}
     </ScrollView>
     </ThemedView>
   </>
