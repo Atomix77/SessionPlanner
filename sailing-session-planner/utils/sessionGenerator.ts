@@ -507,7 +507,7 @@ function buildDetailedTimeline(
     };
 
     let previousSection: string | null = null;
-    let breakInserted = false;
+    let breakInserted = false
     let safetyBriefingInserted = false;
     let afterBreakActive = false;
     let postBreakPracticalAdded = false;
@@ -644,8 +644,8 @@ function buildDetailedTimeline(
                 const activity = block.activities[idx];
                 const duration = computeDuration(activity.duration, metaType);
                 const instructions = idx === 0
-                    ? `${intro} Focus on developing practical sailing skills and confidence during "${activity.name}".`
-                    : `Focus on developing practical sailing skills and confidence during "${activity.name}".`;
+                    ? `${intro} Focus on developing practical sailing skills and confidence during ${activity.name}.`
+                    : `Focus on developing practical sailing skills and confidence during ${activity.name}.`;
                 addEntry(activity.name, block.section, duration, metaType, instructions);
 
                 if (afterBreakActive) {
@@ -672,9 +672,16 @@ function buildDetailedTimeline(
 
             block.activities.forEach((activity, idx) => {
                 const duration = computeDuration(activity.duration, metaType);
-                const instructions = idx === 0
-                    ? `${intro} Focus on developing essential onshore sailing skills and confidence during "${activity.name}".`
-                    : `Focus on developing essential onshore sailing skills and confidence during "${activity.name}".`;
+                let instructions = "";
+                if (block.section === "Theory" || block.section === "Knots") {
+                    instructions = idx === 0
+                    ? `${intro} Focus on developing practical sailing skills and confidence during ${activity.name}.`
+                    : `Focus on developing practical sailing skills and confidence during ${activity.name}.`;
+                } else if (block.section === "Break") {
+                    instructions = idx === 0
+                        ? `${intro} Focus on relaxation and recovery during this break.`
+                        : `Focus on relaxation and recovery during this break.`;
+                }
                 addEntry(activity.name, block.section, duration, metaType, instructions);
             });
 
@@ -725,7 +732,7 @@ function createPlanSummary(
     }
 
     if (funElement) {
-        parts.push(`Planned energiser: ${funElement}.`);
+        parts.push(`Planned games: ${funElement}.`);
     }
     if (slackMinutes >= 5) {
         parts.push(`Includes ${slackMinutes} minutes of adaptable buffer time.`);
@@ -945,52 +952,80 @@ export function generateSessionPlan(sessionInfo: SessionInfo) {
         ? (recommendedGames.length > 0 ? recommendedGames : userSelectedGames)
         : userSelectedGames;
     const shouldScheduleGames = gamesToSchedule.length > 0 && (isLongSession || userSelectedGames.length > 0);
+    const scheduledGames: { title: string; duration: number }[] = [];
 
-    if (shouldScheduleGames) {
-        const timelineWithGames: TimelineEntry[] = [...timeline];
-        let currentStart = totalPlannedMin;
-        let slackRemaining = Math.max(totalSessionTime - totalPlannedMin, 0);
+    if (shouldScheduleGames && timeline.some(entry => entry.section === "Practical" || entry.type === "practical")) {
+        const isPackdownPhaseEntry = (entry: TimelineEntry) =>
+            entry.section === "Packdown" ||
+            entry.type === "packdown" ||
+            /packdown|return to shore/i.test(entry.title);
+
+        const packdownStartIndex = timeline.findIndex(isPackdownPhaseEntry);
+        const prePackdown = packdownStartIndex === -1 ? [...timeline] : timeline.slice(0, packdownStartIndex);
+        const packdownEntries = packdownStartIndex === -1 ? [] : timeline.slice(packdownStartIndex);
+        const prePackdownEnd = prePackdown.length > 0 ? prePackdown[prePackdown.length - 1].endMin : 0;
+        const packdownDurationTotal = packdownEntries.reduce((sum, entry) => sum + entry.durationMin, 0);
+        let gameWindow = Math.max(0, totalSessionTime - packdownDurationTotal - prePackdownEnd);
+
+        const gamesEntries: TimelineEntry[] = [];
+        let currentStart = prePackdownEnd;
         const trimmedGames: string[] = [];
 
         gamesToSchedule.forEach((game) => {
-            if (slackRemaining <= 0) {
+            if (gameWindow <= 0) {
                 trimmedGames.push(game);
                 return;
             }
 
-            const duration = Math.min(baseGameDuration, slackRemaining);
+            const duration = Math.min(baseGameDuration, gameWindow);
             if (duration <= 0) {
                 trimmedGames.push(game);
                 return;
             }
 
-            timelineWithGames.push({
+            gamesEntries.push({
                 title: game,
                 section: "Games",
                 startMin: currentStart,
                 endMin: currentStart + duration,
                 durationMin: duration,
                 type: 'games',
-                instructions: `Celebrate progression with "${game}" to end on a high and reinforce teamwork.`,
+                instructions: `Practice essentials skills with ${game} to have fun and reinforce teamwork.`,
             });
+            scheduledGames.push({ title: game, duration });
             currentStart += duration;
-            slackRemaining = Math.max(slackRemaining - duration, 0);
+            gameWindow = Math.max(0, gameWindow - duration);
         });
+
+        if (gamesEntries.length > 0) {
+            let cursor = currentStart;
+            const adjustedPackdown = packdownEntries.map(entry => {
+                const adjusted: TimelineEntry = {
+                    ...entry,
+                    startMin: cursor,
+                    endMin: cursor + entry.durationMin,
+                };
+                cursor += entry.durationMin;
+                return adjusted;
+            });
+
+            timeline = [...prePackdown, ...gamesEntries, ...adjustedPackdown];
+            totalPlannedMin = cursor;
+            slackMinutes = Math.max(totalSessionTime - totalPlannedMin, 0);
+        }
 
         if (trimmedGames.length > 0) {
             plannerNotes.push(`Games ${trimmedGames.join(', ')} listed as optional cool-downs if time allows at the finish.`);
-        } else if (isLongSession && userSelectedGames.length === 0 && recommendedGames.length > 0) {
-            plannerNotes.push("Added default long-session games to keep energy up before packdown.");
-        } else {
-            plannerNotes.push("Games scheduled to close the session with energy and fun.");
         }
-
-        timeline = timelineWithGames;
-        totalPlannedMin = currentStart;
-        slackMinutes = Math.max(totalSessionTime - currentStart, 0);
+        if (scheduledGames.length > 0) {
+            if (trimmedGames.length === 0 && isLongSession && userSelectedGames.length === 0 && recommendedGames.length > 0) {
+                plannerNotes.push("Added default long-session games to keep energy up before packdown.");
+            }
+            plannerNotes.push("Games scheduled to close the on-water block before returning to shore.");
+        }
     }
 
-    const recommendedGamesDisplay = recommendedGames.map(game => `${game} (${baseGameDuration} min)`);
+    const recommendedGamesDisplay = scheduledGames.map(game => `${game.title} (${game.duration} min)`);
 
     const planSummary = createPlanSummary(
         selectedPractical,
@@ -1002,13 +1037,10 @@ export function generateSessionPlan(sessionInfo: SessionInfo) {
 
     // Add timings and general skills to output
     return {
-        courseContent,
         allocatedBoats,
-        activitiesWithTimings,
         timeline,
-        generalSkills,
         safetyNotes,
-    recommendedGames: recommendedGamesDisplay,
+        recommendedGames: recommendedGamesDisplay,
         planSummary,
         totalPlannedMin,
         slackMinutes,
