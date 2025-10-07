@@ -328,6 +328,37 @@ function getCourseContent(course: string): {
                 "Correct stowage of dinghy and gear": 20,
             },
         },
+        StartRacing: {
+            setup: {},
+            practical: {
+                "Can identify a start line and start from the correct side.": 15,
+                "Can slow the boat and accelerate to cross the line within 10 seconds after the start signal.": 30,
+                "Understands the procedure if over the line at the start.": 15,
+                "Understands the significance of port/starboard and windward/leeward.": 10,
+                "Understands the use of heel and trim to aid steering.": 10,
+                "Can tack and gybe in a range of conditions.": 15,
+                "Can recover from a capsize with little assistance.": 15,
+                "Can perform an MOB recovery to Level 2 standard.": 20,
+                "Can hold an effective close-hauled course upwind.": 15,
+            },
+            theory: {
+                "Understands a basic start sequence.": 5,
+                "Understands how to round a mark.": 5,
+                "Can recognise headers and lifts.": 5,
+                "Has knowledge of the difference between the International Regulations for Preventing Collisions at Sea (IRPCS) and the Racing Rules of Sailing (RRS).": 15,
+                "Understands other rules as shown.": 5,
+                "Can source and use an appropriate weather forecast.": 5,
+                "Understands what a suitable wind strength is to race in.": 5
+            },
+            knots: {},
+            general: [
+                "Can use the five essentials effectively.",
+                "Can keep the boat upright using the toe straps to sit out and can trim the sail to aid this.",
+            ],
+            packdown: {
+                "Understands an appropriate technique to approach and land when coming ashore, on lee shores, weather shores, or slipways.": 15,
+            },
+        },
     };
 
     const section = courseContentMap[course];
