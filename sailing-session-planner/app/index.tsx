@@ -1,14 +1,15 @@
 import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
-import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput, Pressable, Switch } from 'react-native';
+import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput, Pressable, Switch, ActivityIndicator, Alert } from 'react-native';
 import { useState } from 'react';
-import { Compass, Goal, Users, Wind, Sailboat, Info } from "lucide-react"
+import { Compass, Goal, Users, Wind, Sailboat, Info, AlertCircle, CheckCircle, Clock, BookOpen, Anchor } from "lucide-react"
 import { Picker } from '@react-native-picker/picker';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
+import { generateAISessionPlan, AISessionPlan, getActivityColor, getActivityIcon } from '../utils/aiSessionPlanner';
 import { generateSessionPlan } from '../utils/sessionGenerator';
 
 export default function HomeScreen() {
@@ -23,6 +24,18 @@ export default function HomeScreen() {
   const [gustSpeed, setGustSpeed] = useState(15);
   const [tideStrength, setTideStrength] = useState(5);
   const [tideDirection, setTideDirection] = useState('Ebb');
+  const tideDirectionLabels: Record<string, string> = {
+    'Ebb': 'Ebb (outgoing) throughout',
+    'Flood': 'Flood (incoming) throughout',
+    'Slack': 'Slack / negligible flow',
+    'EbbToSlack': 'Ebb → Slack (outgoing, easing)',
+    'EbbToFlood': 'Ebb → Flood (tide turning, outgoing to incoming)',
+    'SlackToEbb': 'Slack → Ebb (building outgoing)',
+    'SlackToFlood': 'Slack → Flood (building incoming)',
+    'FloodToSlack': 'Flood → Slack (incoming, easing)',
+    'FloodToEbb': 'Flood → Ebb (tide turning, incoming to outgoing)',
+    'Cross': 'Cross tide (perpendicular to wind)',
+  };
   const [waveHeight, setWaveHeight] = useState('0');
   const [tidal, setTidal] = useState('No');
   const boatOptions = [
@@ -42,7 +55,9 @@ export default function HomeScreen() {
     );
   };
   const [games, setGames] = useState('');
-  const [sessionPlan, setSessionPlan] = useState<any>(null);
+  const [sessionPlan, setSessionPlan] = useState<AISessionPlan | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const formatMinutes = (mins: number): string => {
     if (!Number.isFinite(mins) || mins < 0) return '00:00';
@@ -108,6 +123,84 @@ export default function HomeScreen() {
 
       <ThemedView style={styles.contentContainer}>
         <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
+          <Sailboat size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
+          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Boats and Equipment </ThemedText>
+        </ThemedView>
+        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Available Boats and Training Equipment </ThemedText>
+        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Available Boats</ThemedText>
+
+        <ThemedView style={{ width: '100%', marginTop: 12 }}>
+          <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {boatOptions.map(opt => {
+              const count = selectedBoats.filter(b => b === opt.value).length;
+              return (
+                <ThemedView key={opt.value} style={{ alignItems: 'center', marginRight: 12, marginBottom: 8 }}>
+                  <Pressable
+                    onPress={() => toggleBoat(opt.value)}
+                    style={[
+                      styles.button,
+                      {
+                        borderColor: count > 0 ? '#087ca3' : '#e4e4e4',
+                        backgroundColor: count > 0
+                          ? (colorScheme === 'light' ? '#e6f7ff' : '#003a4d')
+                          : (colorScheme === 'light' ? '#fff' : '#1a1a1a')
+                      }
+                    ]}
+                  >
+                    <ThemedText style={{
+                      color: count > 0 ? '#087ca3' : (colorScheme === 'light' ? '#000' : '#fff'),
+                      fontWeight: count > 0 ? 'bold' : 'normal'
+                    }}>
+                      {opt.label}
+                    </ThemedText>
+                  </Pressable>
+                  <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Pressable
+                      onPress={() => {
+                        setSelectedBoats(prev => prev.filter((b, i) => {
+                          // Remove only one instance from the end
+                          if (b === opt.value && prev.lastIndexOf(opt.value) === i) return false;
+                          return true;
+                        }));
+                      }}
+                      disabled={count === 0}
+                      style={{
+                        paddingHorizontal: 8,
+                        opacity: count === 0 ? 0.4 : 1
+                      }}
+                    >
+                      <ThemedText style={{ fontSize: 20, color: '#087ca3' }}>−</ThemedText>
+                    </Pressable>
+                    <ThemedText style={{ minWidth: 18, textAlign: 'center', fontSize: 16 }}>{count}</ThemedText>
+                    <Pressable
+                      onPress={() => setSelectedBoats(prev => [...prev, opt.value])}
+                      style={{ paddingHorizontal: 8 }}
+                    >
+                      <ThemedText style={{ fontSize: 20, color: '#087ca3' }}>+</ThemedText>
+                    </Pressable>
+                  </ThemedView>
+                </ThemedView>
+              );
+            })}
+          </ThemedView>
+        </ThemedView>
+
+        <ThemedView style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <ThemedText style={{ fontSize: 18, fontWeight: '500' }}>Boats pre-rigged?</ThemedText>
+          <Switch
+            value={boatsPreRigged}
+            onValueChange={setBoatsPreRigged}
+            trackColor={{ false: colorScheme === 'light' ? '#d1d5db' : '#374151', true: colorScheme === 'light' ? '#7dd3fc' : '#0ea5e9' }}
+            thumbColor={boatsPreRigged ? '#087ca3' : (colorScheme === 'light' ? '#f9fafb' : '#f3f4f6')}
+          />
+        </ThemedView>
+        <ThemedText style={{ marginTop: 6, color: colorScheme === 'light' ? '#6b7280' : '#9ca3af' }}>
+          Enable if boats are already rigged so setup focuses on quick safety inspections.
+        </ThemedText>
+      </ThemedView>
+
+      <ThemedView style={styles.contentContainer}>
+        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
           <Info size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
           <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Session Details </ThemedText>
         </ThemedView>
@@ -116,11 +209,23 @@ export default function HomeScreen() {
           <ThemedView style={{width: '50%'}}>
             <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Course Type</ThemedText>
             <ThemedView style={{ width: '95%', marginTop: 12 }}>
-              <Picker selectedValue={courseType} onValueChange={(itemValue) => setCourseType(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
+              <Picker selectedValue={courseType} onValueChange={(itemValue) => {
+                setCourseType(itemValue);
+                // Reset course to first valid option for the new course type
+                const firstCourseMap: Record<string, string> = {
+                  'Youth': 'Stage1',
+                  'YouthRacing': 'YouthStartRacing',
+                  'Adult': 'Level1',
+                  'AdultRacing': 'AdultStartRacing',
+                  'Advanced': 'PerformanceSailing',
+                };
+                setCourse(firstCourseMap[itemValue] || 'Stage1');
+              }} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#000' : '#fff'}>
                 <Picker.Item label="Youth" value="Youth" />
+                <Picker.Item label="Youth Racing" value="YouthRacing" />
                 <Picker.Item label="Adult" value="Adult" />
+                <Picker.Item label="Adult Racing" value="AdultRacing" />
                 <Picker.Item label="Advanced" value="Advanced" />
-                <Picker.Item label="Race" value="Race" />
               </Picker>
             </ThemedView>
           </ThemedView>
@@ -140,6 +245,14 @@ export default function HomeScreen() {
                       { label: "Taster Session", value: "YouthTasterSession" },
                     ];
                     break;
+                  case 'YouthRacing':
+                    courseOptions = [
+                      { label: "Start Racing", value: "YouthStartRacing" },
+                      { label: "Club Racing", value: "YouthClubRacing" },
+                      { label: "Regional Racing", value: "YouthRegionalRacing" },
+                      { label: "Championship Racing", value: "YouthChampionshipRacing" },
+                    ];
+                    break;
                   case 'Adult':
                     courseOptions = [
                       { label: "Level 1 - Start Sailing", value: "Level1" },
@@ -148,20 +261,19 @@ export default function HomeScreen() {
                       { label: "Taster Session", value: "AdultTasterSession" },
                     ];
                     break;
+                  case 'AdultRacing':
+                    courseOptions = [
+                      { label: "Start Racing", value: "AdultStartRacing" },
+                      { label: "Intermediate Racing", value: "IntermediateRacing" },
+                      { label: "Advanced Racing", value: "AdvancedRacing" },
+                    ];
+                    break;
                   case 'Advanced':
                     courseOptions = [
                       { label: "Performance Sailing", value: "PerformanceSailing" },
-                      { label: "Seamanship Skills", value: "Seamanship" },
+                      { label: "Seamanship Skills", value: "SeamanshipSkills" },
                       { label: "Day Sailing", value: "DaySailing" },
                       { label: "Sailing with Spinnakers", value: "SailingWithSpinnakers" },
-                    ];
-                    break;
-                  case 'Race':
-                    courseOptions = [
-                      { label: "Start Racing", value: "StartRacing" },
-                      { label: "Club Racing", value: "ClubRacing" },
-                      { label: "Regional Racing", value: "RegionalRacing" },
-                      { label: "Championship Racing", value: "ChampionshipRacing" },
                     ];
                     break;
                   default:
@@ -246,10 +358,16 @@ export default function HomeScreen() {
               <ThemedText type="title" style={{ fontSize: 20, fontWeight: '500' }}> Tide Direction </ThemedText>
               <ThemedView style={{ width: '95%', marginTop: 12 }}>
               <Picker selectedValue={tideDirection} onValueChange={(itemValue) => setTideDirection(itemValue)} style={[styles.textBox , {color: colorScheme === 'light' ? '#000' : '#fff', backgroundColor: colorScheme === 'light' ? '#fff' : '#1a1a1a'}]} dropdownIconColor={colorScheme === 'light' ? '#fff' : '#000'}>
-                <Picker.Item label="Ebb (outgoing)" value="Ebb" />
-                <Picker.Item label="Flood (incoming)" value="Flood" />
-                <Picker.Item label='Slack' value='Slack' />
-                <Picker.Item label='Cross Tide' value='Cross' />
+                <Picker.Item label="Ebb (outgoing) throughout" value="Ebb" />
+                <Picker.Item label="Flood (incoming) throughout" value="Flood" />
+                <Picker.Item label="Slack / negligible flow" value="Slack" />
+                <Picker.Item label="Ebb → Slack (easing)" value="EbbToSlack" />
+                <Picker.Item label="Ebb → Flood (tide turning)" value="EbbToFlood" />
+                <Picker.Item label="Slack → Ebb (building out)" value="SlackToEbb" />
+                <Picker.Item label="Slack → Flood (building in)" value="SlackToFlood" />
+                <Picker.Item label="Flood → Slack (easing)" value="FloodToSlack" />
+                <Picker.Item label="Flood → Ebb (tide turning)" value="FloodToEbb" />
+                <Picker.Item label="Cross tide" value="Cross" />
               </Picker>
               </ThemedView>
             </ThemedView>
@@ -262,9 +380,9 @@ export default function HomeScreen() {
                     value={waveHeight}
                     onChangeText={text => {
                       // Accept only valid decimal numbers or empty string
-                      const sanitized = text.replace(',', '.');
-                      if (/^\d*\.?\d*$/.test(sanitized) || sanitized === '') {
-                        setWaveHeight(sanitized);
+                      const sanitised = text.replace(',', '.');
+                      if (/^\d*\.?\d*$/.test(sanitised) || sanitised === '') {
+                        setWaveHeight(sanitised);
                       }
                     }}
                     inputMode="decimal"
@@ -275,84 +393,6 @@ export default function HomeScreen() {
             </ThemedView>
           </ThemedView>
         )}</ThemedView>
-
-      <ThemedView style={styles.contentContainer}>
-        <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
-          <Sailboat size={32} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} style={{ backgroundColor: colorScheme === 'light' ? '#ffffff' : '#151718', padding: 4, borderWidth: 2 }} />
-          <ThemedText type="title" style={{ fontSize: 24, fontWeight: 'bold' }}> Boats and Equipment </ThemedText>
-        </ThemedView>
-        <ThemedText type="default" style={{ fontSize: 16, color: colorScheme === 'light' ? '#6b7280' : '#6b7280' }}>  Available Boats and Training Equipment </ThemedText>
-        <ThemedText type="default" style={{ fontSize: 20, fontWeight: '500', marginTop: 12 }}> Available Boats</ThemedText>
-
-        <ThemedView style={{ width: '100%', marginTop: 12 }}>
-          <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {boatOptions.map(opt => {
-              const count = selectedBoats.filter(b => b === opt.value).length;
-              return (
-                <ThemedView key={opt.value} style={{ alignItems: 'center', marginRight: 12, marginBottom: 8 }}>
-                  <Pressable
-                    onPress={() => toggleBoat(opt.value)}
-                    style={[
-                      styles.button,
-                      {
-                        borderColor: count > 0 ? '#087ca3' : '#e4e4e4',
-                        backgroundColor: count > 0
-                          ? (colorScheme === 'light' ? '#e6f7ff' : '#003a4d')
-                          : (colorScheme === 'light' ? '#fff' : '#1a1a1a')
-                      }
-                    ]}
-                  >
-                    <ThemedText style={{
-                      color: count > 0 ? '#087ca3' : (colorScheme === 'light' ? '#000' : '#fff'),
-                      fontWeight: count > 0 ? 'bold' : 'normal'
-                    }}>
-                      {opt.label}
-                    </ThemedText>
-                  </Pressable>
-                  <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                    <Pressable
-                      onPress={() => {
-                        setSelectedBoats(prev => prev.filter((b, i) => {
-                          // Remove only one instance from the end
-                          if (b === opt.value && prev.lastIndexOf(opt.value) === i) return false;
-                          return true;
-                        }));
-                      }}
-                      disabled={count === 0}
-                      style={{
-                        paddingHorizontal: 8,
-                        opacity: count === 0 ? 0.4 : 1
-                      }}
-                    >
-                      <ThemedText style={{ fontSize: 20, color: '#087ca3' }}>−</ThemedText>
-                    </Pressable>
-                    <ThemedText style={{ minWidth: 18, textAlign: 'center', fontSize: 16 }}>{count}</ThemedText>
-                    <Pressable
-                      onPress={() => setSelectedBoats(prev => [...prev, opt.value])}
-                      style={{ paddingHorizontal: 8 }}
-                    >
-                      <ThemedText style={{ fontSize: 20, color: '#087ca3' }}>+</ThemedText>
-                    </Pressable>
-                  </ThemedView>
-                </ThemedView>
-              );
-            })}
-          </ThemedView>
-        </ThemedView>
-
-        <ThemedView style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <ThemedText style={{ fontSize: 18, fontWeight: '500' }}>Boats pre-rigged?</ThemedText>
-          <Switch
-            value={boatsPreRigged}
-            onValueChange={setBoatsPreRigged}
-            trackColor={{ false: colorScheme === 'light' ? '#d1d5db' : '#374151', true: colorScheme === 'light' ? '#7dd3fc' : '#0ea5e9' }}
-            thumbColor={boatsPreRigged ? '#087ca3' : (colorScheme === 'light' ? '#f9fafb' : '#f3f4f6')}
-          />
-        </ThemedView>
-        <ThemedText style={{ marginTop: 6, color: colorScheme === 'light' ? '#6b7280' : '#9ca3af' }}>
-          Enable if boats are already rigged so setup focuses on quick safety inspections.
-        </ThemedText>
-      </ThemedView>
 
       <ThemedView style={styles.contentContainer}>
         <ThemedView style={[{ display: 'flex', flexDirection: 'row', alignItems: 'center' }]}>
@@ -371,8 +411,18 @@ export default function HomeScreen() {
         </ThemedView>
       </ThemedView>
       <Pressable
-        style={({ pressed }) => [[styles.mainButton],{backgroundColor: pressed? (colorScheme === 'light' ? '#087ca3' : '#005073') : (colorScheme === 'light' ? '#0ea5e9' : '#087ca3')}]}
-        onPress={() => {
+        style={({ pressed }) => [[styles.mainButton],{backgroundColor: pressed? (colorScheme === 'light' ? '#087ca3' : '#005073') : (colorScheme === 'light' ? '#0ea5e9' : '#087ca3'), opacity: isGenerating ? 0.7 : 1}]}
+        disabled={isGenerating}
+        onPress={async () => {
+          // Convert tide strength string to number
+          const tideStrengthMap: Record<string, number> = {
+            'slack': 0,
+            'light': 1,
+            'moderate': 2,
+            'strong': 4,
+            'spring': 6,
+          };
+          
           const sessionInfo = {
             instructorCount,
             studentCount,
@@ -382,185 +432,244 @@ export default function HomeScreen() {
             course,
             windSpeed,
             gustSpeed,
-            tideStrength: tidal === "No" ? 0 : tideStrength,
-            tideDirection: tidal === "No" ? "N/A" : tideDirection,
+            tideStrength: tidal === "No" ? 0 : (tideStrengthMap[tideStrength] ?? 0),
+            tideDirection: tidal === "No" ? "N/A" : (tideDirectionLabels[tideDirection] || tideDirection),
             waveHeight: parseFloat(waveHeight) || 0,
             tidal: tidal === "Yes",
             selectedBoats,
             games: games.split(',').map(g => g.trim()).filter(g => g.length > 0),
             boatsPreRigged,
           };
-          const plan = generateSessionPlan(sessionInfo);
-          console.log('Generated Plan:', plan);
-          setSessionPlan(plan);
+          
+          setIsGenerating(true);
+          setError(null);
+          setSessionPlan(null);
+          
+          try {
+            const plan = await generateAISessionPlan(sessionInfo);
+            console.log('Session Plan:', plan);
+            setSessionPlan(plan);
+          } catch (err) {
+            console.error('Session Plan generation failed:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Failed to generate plan';
+            setError(errorMessage);
+            // Fallback to deterministic planner
+            try {
+              const fallbackPlan = generateSessionPlan(sessionInfo);
+              console.log('Fallback Plan:', fallbackPlan);
+              // Convert fallback plan to AI format for display
+              setSessionPlan({
+                activities: fallbackPlan.timeline.map((item: any) => ({
+                  name: item.title,
+                  approximateDuration: `~${item.durationMin} min`,
+                  type: item.type,
+                  teachingNotes: item.instructions,
+                })),
+                safetyNotes: fallbackPlan.safetyNotes,
+                planSummary: fallbackPlan.planSummary + ' (Generated using fallback planner)',
+                courseCompletionNotes: 'Generated using fallback planner due to an error.',
+                weatherConsiderations: fallbackPlan.weatherAnalysis
+                  ? [
+                      `Wind: ${fallbackPlan.weatherAnalysis.conditions.windLevel}, Sea: ${fallbackPlan.weatherAnalysis.conditions.seaState}`,
+                      ...fallbackPlan.weatherAnalysis.recommendations,
+                      ...fallbackPlan.weatherAnalysis.adaptations,
+                    ].filter(Boolean).join('. ')
+                  : '',
+                instructorTips: [
+                  ...(fallbackPlan.plannerNotes || []),
+                  ...(fallbackPlan.contingencyPlans || []).map((c: string) => `📋 ${c}`),
+                ],
+                estimatedTotalTime: `${Math.floor(fallbackPlan.totalPlannedMin / 60)}h ${fallbackPlan.totalPlannedMin % 60}m`,
+                priorityActivities: [],
+                optionalActivities: [],
+              });
+            } catch (fallbackErr) {
+              console.error('Fallback also failed:', fallbackErr);
+            }
+          } finally {
+            setIsGenerating(false);
+          }
         }}
       >
-        <ThemedText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
-          Generate Session Plan
-        </ThemedText>
+        {isGenerating ? (
+          <ThemedView style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }}>
+            <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+            <ThemedText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>
+              Generating Session Plan...
+            </ThemedText>
+          </ThemedView>
+        ) : (
+          <ThemedText style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
+            Generate Session Plan
+          </ThemedText>
+        )}
       </Pressable>
+      
+      {error && (
+        <ThemedView style={[styles.contentContainer, { marginTop: 16, borderColor: '#ef4444', backgroundColor: colorScheme === 'light' ? '#fef2f2' : '#450a0a' }]}>
+          <ThemedView style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' }}>
+            <AlertCircle size={20} color="#ef4444" />
+            <ThemedText style={{ marginLeft: 8, color: '#ef4444', fontWeight: 'bold' }}>Session Plan Generation Failed</ThemedText>
+          </ThemedView>
+          <ThemedText style={{ marginTop: 8, color: colorScheme === 'light' ? '#991b1b' : '#fca5a5' }}>{error}</ThemedText>
+          <ThemedText style={{ marginTop: 4, color: colorScheme === 'light' ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>Using fallback planner instead.</ThemedText>
+        </ThemedView>
+      )}
       {sessionPlan && (
       <ThemedView style={[styles.contentContainer, { marginTop: 16 }]}> 
-        <ThemedText type="title" style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
-          Session Plan
-        </ThemedText>
+        <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: 'transparent' }}>
+          <CheckCircle size={28} color="#22c55e" />
+          <ThemedText type="title" style={{ fontSize: 22, fontWeight: 'bold', marginLeft: 8 }}>
+            Session Plan
+          </ThemedText>
+        </ThemedView>
 
         {/* Summary */}
         {sessionPlan.planSummary && (
-          <ThemedText style={{ marginBottom: 12, fontStyle: 'italic', color: '#555' }}>
-            {sessionPlan.planSummary}
-          </ThemedText>
-        )}
-
-        {/* Boats */}
-        <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Boats:</ThemedText>
-        {sessionPlan.allocatedBoats && sessionPlan.allocatedBoats.length > 0 ? (
-          sessionPlan.allocatedBoats.map((boat: string, idx: number) => (
-            <ThemedText key={idx} style={{ marginLeft: 8, color: '#2980b9' }}>
-              • {
-                (() => {
-                  switch (boat) {
-                    case 'smallSingle': return 'Small Single Hander';
-                    case 'single': return 'Single Hander';
-                    case 'double': return 'Double Hander';
-                    case 'largeDouble': return 'Large Double Hander';
-                    case 'multi': return 'Multi-Crew';
-                    default: return boat;
-                  }
-                })()
-              }
+          <ThemedView style={{ backgroundColor: colorScheme === 'light' ? '#f0f9ff' : '#0c2d48', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+            <ThemedText style={{ fontStyle: 'italic', color: colorScheme === 'light' ? '#0369a1' : '#7dd3fc' }}>
+              {sessionPlan.planSummary}
             </ThemedText>
-          ))
-        ) : (
-          <ThemedText style={{ marginLeft: 8 }}>No boats selected.</ThemedText>
+          </ThemedView>
         )}
 
-        <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Timeline:</ThemedText>
-        {sessionPlan.timeline && sessionPlan.timeline.length > 0 ? (
-          sessionPlan.timeline.map((item: any, idx: number) => {
-            const inferType = (title: string): 'setup' | 'theory' | 'practical' | 'packdown' | 'break' | 'general' => {
-              const lower = title.toLowerCase();
-              if (lower.includes('setup') || lower.includes('brief')) return 'setup';
-              if (lower.includes('theory') || lower.includes('classroom') || lower.includes('discussion') || lower.includes('explain')) return 'theory';
-              if (lower.includes('sail') || lower.includes('practice') || lower.includes('drill') || lower.includes('on-water')) return 'practical';
-              if (lower.includes('pack') || lower.includes('stow') || lower.includes('end')) return 'packdown';
-              if (lower.includes('break') || lower.includes('lunch')) return 'break';
-              return 'general';
-            };
+        {/* Estimated Time */}
+        {sessionPlan.estimatedTotalTime && (
+          <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: 'transparent' }}>
+            <Clock size={18} color={colorScheme === 'light' ? '#6b7280' : '#9ca3af'} />
+            <ThemedText style={{ marginLeft: 8, color: colorScheme === 'light' ? '#6b7280' : '#9ca3af' }}>
+              Estimated Duration: {sessionPlan.estimatedTotalTime}
+            </ThemedText>
+          </ThemedView>
+        )}
 
-            const title = item.title || item.name || 'Untitled Activity';
-            const type = item.type || inferType(title);
-            const timeRange = formatRangeLabel(item.startMin, item.endMin);
-            const duration = typeof item.durationMin === 'number' ? `${item.durationMin} min` : '';
-            const typeColors: Record<string, string> = {
-              setup: '#3498db',     // blue
-              theory: '#f1c40f',    // yellow
-              practical: '#2ecc71', // green
-              packdown: '#e74c3c',  // red
-              break: '#9b59b6',     // purple
-              general: '#95a5a6',   // grey
-              knots: '#16a085',    // teal
-              games: '#ff7f11',    // orange
-            };
+        {/* Weather Considerations */}
+        {sessionPlan.weatherConsiderations && (
+          <ThemedView style={{ backgroundColor: colorScheme === 'light' ? '#fffbeb' : '#422006', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+            <ThemedView style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' }}>
+              <Wind size={18} color="#f59e0b" />
+              <ThemedText style={{ fontWeight: 'bold', marginLeft: 8, color: '#f59e0b' }}>Weather Considerations</ThemedText>
+            </ThemedView>
+            <ThemedText style={{ marginTop: 8, color: colorScheme === 'light' ? '#92400e' : '#fcd34d' }}>
+              {sessionPlan.weatherConsiderations}
+            </ThemedText>
+          </ThemedView>
+        )}
 
-            const color = typeColors[type] || '#7f8c8d';
+        {/* Activities Timeline */}
+        <ThemedView style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, backgroundColor: 'transparent' }}>
+          <BookOpen size={20} color={colorScheme === 'light' ? '#087ca3' : '#0ea5e9'} />
+          <ThemedText style={{ fontWeight: 'bold', marginLeft: 8, fontSize: 18 }}>Session Activities</ThemedText>
+        </ThemedView>
+        
+        {sessionPlan.activities && sessionPlan.activities.length > 0 ? (
+          sessionPlan.activities.map((activity, idx) => {
+            const activityColor = getActivityColor(activity.type);
+            const activityIcon = getActivityIcon(activity.type);
 
             return (
-              <ThemedView key={idx} style={{ marginVertical: 4 }}>
-                <ThemedText style={{ fontWeight: '600', color }}>
-                  {timeRange ? `${timeRange} • ` : '• '}
-                  {title} {duration ? `(${duration})` : ''}
-                </ThemedText>
-                {item.instructions && (
-                  <ThemedText style={{ marginLeft: 12, color: '#555' }}>
-                    {item.instructions}
+              <ThemedView key={idx} style={{ 
+                marginVertical: 6, 
+                padding: 12, 
+                backgroundColor: colorScheme === 'light' ? '#fafafa' : '#1a1a1a',
+                borderRadius: 8,
+                borderLeftWidth: 4,
+                borderLeftColor: activityColor,
+              }}>
+                <ThemedView style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'transparent' }}>
+                  <ThemedView style={{ flexDirection: 'row', alignItems: 'center', flex: 1, backgroundColor: 'transparent' }}>
+                    <ThemedText style={{ fontSize: 18, marginRight: 8 }}>{activityIcon}</ThemedText>
+                    <ThemedText style={{ fontWeight: '600', color: activityColor, flex: 1 }}>
+                      {activity.name}
+                    </ThemedText>
+                  </ThemedView>
+                  <ThemedView style={{ 
+                    backgroundColor: activityColor + '20', 
+                    paddingHorizontal: 8, 
+                    paddingVertical: 4, 
+                    borderRadius: 12 
+                  }}>
+                    <ThemedText style={{ fontSize: 12, color: activityColor, fontWeight: '500' }}>
+                      {activity.approximateDuration}
+                    </ThemedText>
+                  </ThemedView>
+                </ThemedView>
+                {activity.teachingNotes && (
+                  <ThemedText style={{ marginTop: 8, marginLeft: 26, color: colorScheme === 'light' ? '#4b5563' : '#9ca3af', fontSize: 14 }}>
+                    💡 {activity.teachingNotes}
                   </ThemedText>
                 )}
-                {Array.isArray(item.items) && item.items.length > 0 && (
-                  <ThemedView style={{ marginLeft: 12 }}>
-                    {item.items.map((activity: any, activityIdx: number) => (
-                      <ThemedText key={activityIdx} style={{ color: '#555' }}>
-                        • {typeof activity === 'string' ? activity : activity?.name ?? JSON.stringify(activity)}
-                      </ThemedText>
-                    ))}
-                  </ThemedView>
-                )}
-                {Array.isArray(item.safetyNotes) && item.safetyNotes.length > 0 && (
-                  <ThemedView style={{ marginLeft: 12 }}>
-                    {item.safetyNotes.map((note: string, noteIdx: number) => (
-                      <ThemedText key={noteIdx} style={{ color: '#e67e22' }}>
-                        ⚠️ {note}
-                      </ThemedText>
-                    ))}
-                  </ThemedView>
+                {activity.weatherAdjustments && (
+                  <ThemedText style={{ marginTop: 4, marginLeft: 26, color: '#f59e0b', fontSize: 13, fontStyle: 'italic' }}>
+                    🌤️ {activity.weatherAdjustments}
+                  </ThemedText>
                 )}
               </ThemedView>
             );
           })
         ) : (
-          <ThemedText style={{ marginLeft: 8 }}>No planned timeline.</ThemedText>
+          <ThemedText style={{ marginLeft: 8 }}>No activities planned.</ThemedText>
         )}
 
-        {sessionPlan.plannerNotes && sessionPlan.plannerNotes.length > 0 && (
-          <>
-            <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Planner Notes:</ThemedText>
-            {sessionPlan.plannerNotes.map((note: string, idx: number) => (
-              <ThemedText key={idx} style={{ marginLeft: 8, color: '#555' }}>
-                • {note}
+        {/* Priority Activities */}
+        {sessionPlan.priorityActivities && sessionPlan.priorityActivities.length > 0 && (
+          <ThemedView style={{ marginTop: 16, backgroundColor: 'transparent' }}>
+            <ThemedText style={{ fontWeight: 'bold', marginBottom: 8, color: '#22c55e' }}>✅ Priority Activities (Must Complete)</ThemedText>
+            {sessionPlan.priorityActivities.map((activity, idx) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: colorScheme === 'light' ? '#166534' : '#86efac' }}>
+                • {activity}
               </ThemedText>
             ))}
-          </>
+          </ThemedView>
         )}
 
-        {(sessionPlan.totalPlannedMin || sessionPlan.slackMinutes) && (
-          <>
-            <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Timing Overview:</ThemedText>
-            {typeof sessionPlan.totalPlannedMin === 'number' && (
-              <ThemedText style={{ marginLeft: 8 }}>
-                Planned duration: {sessionPlan.totalPlannedMin} minutes
+        {/* Optional Activities */}
+        {sessionPlan.optionalActivities && sessionPlan.optionalActivities.length > 0 && (
+          <ThemedView style={{ marginTop: 12, backgroundColor: 'transparent' }}>
+            <ThemedText style={{ fontWeight: 'bold', marginBottom: 8, color: '#6b7280' }}>⏭️ Optional (If Time Permits)</ThemedText>
+            {sessionPlan.optionalActivities.map((activity, idx) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: colorScheme === 'light' ? '#6b7280' : '#9ca3af' }}>
+                • {activity}
               </ThemedText>
-            )}
-            {typeof sessionPlan.slackMinutes === 'number' && (
-              <ThemedText style={{ marginLeft: 8 }}>
-                Reserved slack: {sessionPlan.slackMinutes} minutes
-              </ThemedText>
-            )}
-          </>
+            ))}
+          </ThemedView>
+        )}
+
+        {/* Course Completion Notes */}
+        {sessionPlan.courseCompletionNotes && (
+          <ThemedView style={{ marginTop: 16, padding: 12, backgroundColor: colorScheme === 'light' ? '#f0fdf4' : '#052e16', borderRadius: 8 }}>
+            <ThemedView style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' }}>
+              <Anchor size={18} color="#22c55e" />
+              <ThemedText style={{ fontWeight: 'bold', marginLeft: 8, color: '#22c55e' }}>Course Completion Notes</ThemedText>
+            </ThemedView>
+            <ThemedText style={{ marginTop: 8, color: colorScheme === 'light' ? '#166534' : '#86efac' }}>
+              {sessionPlan.courseCompletionNotes}
+            </ThemedText>
+          </ThemedView>
         )}
 
         {/* Safety Notes */}
         {sessionPlan.safetyNotes && sessionPlan.safetyNotes.length > 0 && (
-          <>
-            <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Safety Notes:</ThemedText>
-            {sessionPlan.safetyNotes.map((note: string, idx: number) => (
-              <ThemedText key={idx} style={{ marginLeft: 8, color: '#e67e22' }}>
+          <ThemedView style={{ marginTop: 16, padding: 12, backgroundColor: colorScheme === 'light' ? '#fef2f2' : '#450a0a', borderRadius: 8 }}>
+            <ThemedText style={{ fontWeight: 'bold', marginBottom: 8, color: '#ef4444' }}>⚠️ Safety Notes</ThemedText>
+            {sessionPlan.safetyNotes.map((note, idx) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: colorScheme === 'light' ? '#991b1b' : '#fca5a5', marginBottom: 4 }}>
                 • {note}
               </ThemedText>
             ))}
-          </>
+          </ThemedView>
         )}
 
-        {/* Recommended Games */}
-        {sessionPlan.recommendedGames && sessionPlan.recommendedGames.length > 0 && (
-          <>
-            <ThemedText style={{ fontWeight: 'bold', marginTop: 8 }}>Games:</ThemedText>
-            {sessionPlan.recommendedGames.map((game: string, idx: number) => (
-              <ThemedText key={idx} style={{ marginLeft: 8, color: '#16a085' }}>
-                • {game}
+        {/* Instructor Tips */}
+        {sessionPlan.instructorTips && sessionPlan.instructorTips.length > 0 && (
+          <ThemedView style={{ marginTop: 16, padding: 12, backgroundColor: colorScheme === 'light' ? '#faf5ff' : '#2e1065', borderRadius: 8 }}>
+            <ThemedText style={{ fontWeight: 'bold', marginBottom: 8, color: '#8b5cf6' }}>💡 Instructor Tips</ThemedText>
+            {sessionPlan.instructorTips.map((tip, idx) => (
+              <ThemedText key={idx} style={{ marginLeft: 8, color: colorScheme === 'light' ? '#6b21a8' : '#c4b5fd', marginBottom: 4 }}>
+                • {tip}
               </ThemedText>
             ))}
-          </>
-        )}
-
-        {/* Metadata */}
-        {sessionPlan.metadata && (
-          <>
-            <ThemedText style={{ fontWeight: 'bold', marginTop: 12 }}>Session Details:</ThemedText>
-            <ThemedText style={{ marginLeft: 8 }}>Weather: {sessionPlan.metadata.weather}</ThemedText>
-            <ThemedText style={{ marginLeft: 8 }}>Wind: {sessionPlan.metadata.windSpeed} knots</ThemedText>
-            <ThemedText style={{ marginLeft: 8 }}>Tide: {sessionPlan.metadata.tide}</ThemedText>
-            <ThemedText style={{ marginLeft: 8 }}>Group Size: {sessionPlan.metadata.groupSize}</ThemedText>
-          </>
+          </ThemedView>
         )}
       </ThemedView>
     )}
