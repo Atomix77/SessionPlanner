@@ -1,4 +1,8 @@
-﻿interface SessionInfo {
+﻿export type WindCondition = 'light' | 'moderate' | 'strong';
+export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy';
+export type SkillLevel = 'beginner' | 'intermediate' | 'advanced';
+
+export interface SessionInfo {
     instructorCount: number;
     studentCount: number;
     ageRange: string;
@@ -1472,19 +1476,24 @@ function getAgePacingProfile(ageRange: string): {
 } {
     const normalisedAge = ageRange.toLowerCase().trim();
 
-    if (normalisedAge.includes('6') || normalisedAge.includes('7') || normalisedAge.includes('8') || normalisedAge === 'under 8' || normalisedAge === '6-8') {
-        return { attentionSpan: 15, breakFrequency: 45, gameImportance: 'high', paceLabel: 'Young Juniors', maxContinuousPractical: 20 };
-    }
-    if (normalisedAge.includes('9') || normalisedAge.includes('10') || normalisedAge.includes('11') || normalisedAge === '8-12' || normalisedAge === '9-12') {
-        return { attentionSpan: 20, breakFrequency: 60, gameImportance: 'high', paceLabel: 'Juniors', maxContinuousPractical: 30 };
-    }
-    if (normalisedAge.includes('12') || normalisedAge.includes('13') || normalisedAge.includes('14') || normalisedAge.includes('15') || normalisedAge === '12-16' || normalisedAge === '13-16') {
-        return { attentionSpan: 25, breakFrequency: 75, gameImportance: 'medium', paceLabel: 'Teens', maxContinuousPractical: 40 };
+    // Check for adults first — '18plus' / '18+' / 'adults' must be matched before
+    // digit-based checks, otherwise '8' inside '18plus' would match "Young Juniors".
+    if (normalisedAge.includes('18plus') || normalisedAge.includes('18+') || normalisedAge.includes('adult') || normalisedAge === '18to99' || normalisedAge === '18-99') {
+        return { attentionSpan: 40, breakFrequency: 120, gameImportance: 'minimal', paceLabel: 'Adults', maxContinuousPractical: 60 };
     }
     if (normalisedAge.includes('16') || normalisedAge.includes('17') || normalisedAge === '16-18' || normalisedAge === '16+') {
         return { attentionSpan: 30, breakFrequency: 90, gameImportance: 'medium', paceLabel: 'Older Teens', maxContinuousPractical: 50 };
     }
-    // Adults
+    if (normalisedAge.includes('12') || normalisedAge.includes('13') || normalisedAge.includes('14') || normalisedAge.includes('15') || normalisedAge === '12-16' || normalisedAge === '13-16') {
+        return { attentionSpan: 25, breakFrequency: 75, gameImportance: 'medium', paceLabel: 'Teens', maxContinuousPractical: 40 };
+    }
+    if (normalisedAge.includes('9') || normalisedAge.includes('10') || normalisedAge.includes('11') || normalisedAge === '8-12' || normalisedAge === '9-12') {
+        return { attentionSpan: 20, breakFrequency: 60, gameImportance: 'high', paceLabel: 'Juniors', maxContinuousPractical: 30 };
+    }
+    if (normalisedAge.includes('6') || normalisedAge.includes('7') || normalisedAge.includes('8') || normalisedAge === 'under 8' || normalisedAge === '6-8') {
+        return { attentionSpan: 15, breakFrequency: 45, gameImportance: 'high', paceLabel: 'Young Juniors', maxContinuousPractical: 20 };
+    }
+    // Default to adults for unrecognised ranges
     return { attentionSpan: 40, breakFrequency: 120, gameImportance: 'minimal', paceLabel: 'Adults', maxContinuousPractical: 60 };
 }
 

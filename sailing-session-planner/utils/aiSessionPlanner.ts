@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Constants from 'expo-constants';
+import { config } from './config';
 
 // Types
 export interface SessionInfo {
@@ -658,23 +659,23 @@ IMPORTANT: Provide approximate durations as ranges (e.g., "~15-20 min") since ac
 
 Respond ONLY with valid JSON matching this exact structure:
 {
-  "activities": [
-    {
-      "name": "Activity name",
-      "approximateDuration": "~X-Y min",
-      "type": "setup|practical|theory|knots|packdown|break|briefing|games|transition",
-      "teachingNotes": "Tips for instructors",
-      "weatherAdjustments": "How to adapt if conditions change"
-    }
-  ],
-  "safetyNotes": ["Important safety considerations"],
-  "planSummary": "Brief overview of the session focus",
-  "courseCompletionNotes": "What course elements will/won't be covered and why",
-  "weatherConsiderations": "How current conditions affect the plan",
-  "instructorTips": ["Practical tips for running this session"],
-  "estimatedTotalTime": "X hours Y minutes",
-  "priorityActivities": ["Must-complete activities for course progression"],
-  "optionalActivities": ["Can be skipped if time is short"]
+    "activities": [
+        {
+            "name": "Activity name",
+            "approximateDuration": "~X-Y min",
+            "type": "setup|practical|theory|knots|packdown|break|briefing|games|transition",
+            "teachingNotes": "Tips for instructors",
+            "weatherAdjustments": "How to adapt if conditions change"
+        }
+    ],
+    "safetyNotes": ["Important safety considerations"],
+    "planSummary": "Brief overview of the session focus",
+    "courseCompletionNotes": "What course elements will/won't be covered and why",
+    "weatherConsiderations": "How current conditions affect the plan",
+    "instructorTips": ["Practical tips for running this session"],
+    "estimatedTotalTime": "X hours Y minutes",
+    "priorityActivities": ["Must-complete activities for course progression"],
+    "optionalActivities": ["Can be skipped if time is short"]
 }`;
 
 function buildUserPrompt(sessionInfo: SessionInfo): string {
@@ -775,7 +776,7 @@ Remember to respond with valid JSON only.`;
 }
 
 export async function generateAISessionPlan(sessionInfo: SessionInfo): Promise<AISessionPlan> {
-    const apiKey = Constants.expoConfig?.extra?.geminiApiKey || process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    const apiKey = Constants.expoConfig?.extra?.geminiApiKey || config.geminiApiKey;
     
     if (!apiKey) {
         throw new Error('Gemini API key not configured. Please set EXPO_PUBLIC_GEMINI_API_KEY in your environment.');
