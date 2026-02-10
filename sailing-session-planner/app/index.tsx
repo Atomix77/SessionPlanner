@@ -1,6 +1,5 @@
-import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
-import { Platform, StyleSheet, ScrollView, TouchableOpacity, TextInput, Pressable, Switch, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, ScrollView, TextInput, Pressable, Switch, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import { Compass, Goal, Users, Wind, Sailboat, Info, AlertCircle, CheckCircle, Clock, BookOpen, Anchor } from "lucide-react"
 import { Picker } from '@react-native-picker/picker';
@@ -58,19 +57,6 @@ export default function HomeScreen() {
   const [sessionPlan, setSessionPlan] = useState<AISessionPlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const formatMinutes = (mins: number): string => {
-    if (!Number.isFinite(mins) || mins < 0) return '00:00';
-    const hours = Math.floor(mins / 60);
-    const minutes = mins % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
-
-  const formatRangeLabel = (start: number, end: number): string => {
-    const startLabel = formatMinutes(start);
-    const endLabel = formatMinutes(end);
-    return `${startLabel} - ${endLabel}`;
-  };
 
   return (
   <>

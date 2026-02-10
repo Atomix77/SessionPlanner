@@ -1,6 +1,7 @@
 {
   "expo": {
-    "name": "sailing-session-planner",
+    "name": "SailPlan",
+    "description": "AI-powered sailing lesson planner for instructors. Create tailored session plans based on weather, student levels, and RYA course curriculum.",
     "slug": "sailing-session-planner",
     "version": "1.0.0",
     "orientation": "portrait",
