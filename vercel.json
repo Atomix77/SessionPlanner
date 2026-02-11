@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd sailing-session-planner && npx expo export --platform web",
+  "outputDirectory": "sailing-session-planner/dist",
+  "installCommand": "cd sailing-session-planner && npm install"
+}
