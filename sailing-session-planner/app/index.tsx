@@ -67,7 +67,7 @@ export default function HomeScreen() {
         <ThemedText type="title" style={[styles.bannerTitle, styles.mainBanner]}>SailPlan</ThemedText>
       </ThemedView>
 
-    <ScrollView>
+    <ScrollView style={[{margin: 5}]}>
       <ThemedView style={[styles.content, { backgroundColor: colorScheme === 'light' ? '#ffffff' : '#000000', }]}>
         <ThemedView style={{ alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'light' ? '#ffffff' : '#000000', padding: 0, margin: 0 }}>
           <ThemedText type="title" style={{ fontSize: 36, fontWeight: 'bold' }}> Plan Your Perfect </ThemedText>
@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
     borderColor: '#e4e4e4',
     borderRadius: 8,
     alignSelf: 'stretch',
-    width: '50%',
+    width: '90%',
     gap: '0px',
     padding: 16,
     marginBottom: 16,
